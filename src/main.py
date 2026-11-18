@@ -3,11 +3,13 @@
 import time
 import uuid
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI, Request, Response, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from src.api.v1 import api_v1_router
 from src.core.config import get_settings
@@ -148,8 +150,25 @@ def create_app() -> FastAPI:
     # Inclusión de Rutas
     app.include_router(api_v1_router)
 
+    static_dir = Path(__file__).resolve().parent / "static"
+    if static_dir.exists():
+        app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+
+    @app.get("/app", tags=["Frontend SPA"], response_class=FileResponse)
+    @app.get("/app/{full_path:path}", tags=["Frontend SPA"], response_class=FileResponse)
+    async def serve_spa(full_path: str = ""):
+        """Sirve la aplicación de interfaz de usuario del ERP."""
+        index_file = static_dir / "index.html"
+        if index_file.exists():
+            return FileResponse(str(index_file))
+        return JSONResponse(status_code=404, content={"error": "Frontend no disponible"})
+
     @app.get("/", tags=["Root"])
-    async def root():
+    async def root(request: Request):
+        accept_header = request.headers.get("accept", "")
+        index_file = static_dir / "index.html"
+        if "text/html" in accept_header and "*/*" not in accept_header and index_file.exists():
+            return FileResponse(str(index_file))
         return {
             "name": "ERP Mercado Libre México API",
             "version": "0.1.0",

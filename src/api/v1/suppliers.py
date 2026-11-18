@@ -90,6 +90,17 @@ async def create_purchase_order(
         entity_id=str(po.id),
         company_id=ctx.company_id,
         user_id=ctx.user.id,
-        changes={"order_number": po.order_number, "total_amount": float(total_amount)},
+        changes={"po_number": po.po_number, "total_amount": float(total_amount)},
     )
     return po
+
+
+@router.get("/purchase-orders", response_model=Page[PurchaseOrderResponse])
+async def list_purchase_orders(
+    params: PaginationParams = Depends(),
+    ctx: CompanyContext = Depends(require_company_permission(ModuleEnum.SUPPLIERS, ActionEnum.READ)),
+    session: AsyncSession = Depends(get_db),
+) -> Page[PurchaseOrder]:
+    """Lista las órdenes de compra emitidas para la empresa activa."""
+    return await po_repo.get_paginated(session, params, PurchaseOrder.company_id == ctx.company_id)
+

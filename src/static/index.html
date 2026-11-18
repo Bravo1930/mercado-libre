@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="es" class="h-full bg-slate-50">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ERP Mercado Libre México · Multiempresa & Full Logistics</title>
+  <meta name="description" content="ERP Profesional para Mercado Libre México: Inventario, Facturación SAT, Etiquetas Térmicas, Precios y Automatizaciones.">
+
+  <!-- Favicon SVG -->
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23FFE600'><circle cx='12' cy='12' r='10'/><path fill='%232D3277' d='M8 12l3 3 5-5'/></svg>">
+
+  <!-- Google Fonts: Inter & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            meli: {
+              yellow: '#FFE600',
+              blue: '#2D3277',
+              accent: '#3483FA',
+              green: '#00A650',
+            },
+          },
+          fontFamily: {
+            sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+        },
+      },
+    };
+  </script>
+
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <!-- Estilos Custom del ERP -->
+  <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+<body class="h-full antialiased font-sans bg-slate-50 text-slate-800">
+  <!-- Contenedor Raíz de la Aplicación SPA -->
+  <div id="app-root" class="min-h-full"></div>
+
+  <!-- Contenedor Flotante para Toasts -->
+  <div id="toast-container" class="fixed bottom-4 right-4 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none"></div>
+
+  <!-- Contenedor para Modales y Diálogos de Confirmación -->
+  <div id="modal-root"></div>
+
+  <!-- Script Principal de la Aplicación SPA -->
+  <script type="module" src="/static/js/app.js"></script>
+</body>
+</html>
