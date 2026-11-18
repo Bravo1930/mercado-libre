@@ -35,3 +35,27 @@ class AuditLog(Base, TimestampMixin):
     __table_args__ = (
         Index("ix_audit_logs_company_action_date", "company_id", "action", "created_at"),
     )
+
+
+class SecurityAlert(Base, TimestampMixin):
+    """Alerta de ciberseguridad persistida para incidentes críticos detectados por el SIEM."""
+
+    __tablename__ = "security_alerts"
+
+    id: Mapped[uuid.UUID] = mapped_column(GUID(), primary_key=True, default=uuid.uuid4)
+    company_id: Mapped[uuid.UUID | None] = mapped_column(
+        GUID(), ForeignKey("companies.id", ondelete="CASCADE"), nullable=True, index=True
+    )
+    alert_type: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    severity: Mapped[str] = mapped_column(String(50), nullable=False, index=True)  # LOW, MEDIUM, HIGH, CRITICAL
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False)
+    source_ip: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    user_id: Mapped[uuid.UUID | None] = mapped_column(GUID(), nullable=True, index=True)
+    status: Mapped[str] = mapped_column(String(50), default="OPEN", nullable=False, index=True)  # OPEN, RESOLVED, IGNORED
+
+    company: Mapped["Company | None"] = relationship("Company")
+
+    __table_args__ = (
+        Index("ix_security_alerts_comp_sev_status", "company_id", "severity", "status"),
+    )

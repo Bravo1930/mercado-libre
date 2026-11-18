@@ -1,6 +1,6 @@
 """Exportación centralizada de todos los modelos de datos del ERP."""
 
-from src.models.audit import AuditLog
+from src.models.audit import AuditLog, SecurityAlert
 from src.models.base import Base
 from src.models.commercial import (
     CommercialRecommendation,
@@ -41,6 +41,7 @@ from src.models.sync import SyncEvent, SyncReconciliationLog
 from src.models.tabular import TabularEditHistory, TabularSyncConfig
 from src.models.ai import AIAuditLog, AIConversation, AIMessage, AISettings
 from src.models.automation import AutomationConfig, AutomationExecution, AutomationRule
+from src.models.saas import SaaSInvoice, SaaSPlan, SaaSPayment, SaaSSubscription, SaaSUsageRecord
 from src.models.tenant import Company, Tenant
 from src.models.user import CompanyUser, PasswordResetToken, User, UserSession
 from src.models.warehouse import (

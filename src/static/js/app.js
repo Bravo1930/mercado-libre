@@ -28,6 +28,8 @@ import { renderReports } from './views/reports.js';
 import { renderAI } from './views/ai.js';
 import { renderAutomations } from './views/automations.js';
 import { renderIntegrations } from './views/integrations.js';
+import { renderSecurity } from './views/security.js';
+import { renderSaaSAdmin } from './views/saas_admin.js';
 import { renderSettings } from './views/settings.js';
 import { renderProfile } from './views/profile.js';
 
@@ -50,6 +52,8 @@ const routes = {
   ai: renderAI,
   automations: renderAutomations,
   integrations: renderIntegrations,
+  security: renderSecurity,
+  saas: renderSaaSAdmin,
   settings: renderSettings,
   profile: renderProfile,
 };

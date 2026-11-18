@@ -26,9 +26,12 @@ from src.core.exceptions import (
 from src.core.logging import get_logger
 from src.core.permissions import RoleEnum
 from src.core.security import create_access_token, encrypt_token, hash_password, verify_password
+from src.core.session_security import SessionAnomalyDetector, revoke_user_sessions
+from src.services.security_monitoring import SecurityMonitoringService, SecurityEventType, SecurityThreatLevel
 from src.models.audit import AuditLog
 from src.models.tenant import Company, Tenant
 from src.models.user import CompanyUser, PasswordResetToken, User, UserSession
+from src.services.saas.subscription_service import SaaSSubscriptionService
 from src.schemas.user import (
     CompanyBriefResponse,
     ForgotPasswordRequest,
@@ -109,6 +112,26 @@ async def register_tenant(
     session.add(company_user)
     await session.flush()
 
+    # 6. Asignar suscripción inicial en periodo de prueba de 14 días
+    try:
+        plan = await SaaSSubscriptionService.get_plan_by_code(session, "basic")
+        now_utc = datetime.now(timezone.utc)
+        sub = SaaSSubscription(
+            tenant_id=tenant.id,
+            plan_id=plan.id,
+            status="trialing",
+            billing_cycle="monthly",
+            current_period_start=now_utc,
+            current_period_end=now_utc + timedelta(days=plan.trial_days),
+            trial_ends_at=now_utc + timedelta(days=plan.trial_days),
+            auto_renew=True,
+            payment_provider="manual",
+        )
+        session.add(sub)
+        await session.flush()
+    except Exception as exc:
+        logger.warning(f"Aviso al asignar suscripción por defecto en registro: {exc}")
+
     # 6. Registrar evento de auditoría
     client_ip = request.client.host if request.client else None
     await record_audit_event(
@@ -162,12 +185,23 @@ async def login(
     )
     user = (await session.execute(stmt)).scalar_one_or_none()
 
+    client_ip = request.client.host if request.client else "127.0.0.1"
+
     if not user or not verify_password(payload.password, user.password_hash):
-        logger.warning(f"Intento de inicio de sesión fallido para email='{payload.email}'")
+        logger.warning(f"Intento de inicio de sesión fallido para email='{payload.email}' desde IP='{client_ip}'")
+        await SecurityMonitoringService.check_failed_login_attempt(session, client_ip, payload.email)
         raise AuthenticationFailedException("Correo electrónico o contraseña incorrectos.")
 
     if not user.is_active:
         logger.warning(f"Intento de inicio de sesión en cuenta inactiva: '{payload.email}'")
+        await SecurityMonitoringService.record_security_incident(
+            session=session,
+            event_type="INACTIVE_ACCOUNT_LOGIN_ATTEMPT",
+            severity=SecurityThreatLevel.HIGH,
+            description=f"Intento de acceso a cuenta inactiva o suspendida '{payload.email}'",
+            source_ip=client_ip,
+            user_id=user.id,
+        )
         raise AuthenticationFailedException("La cuenta de usuario se encuentra suspendida o inactiva.")
 
     # 2. Generar JTI único para la sesión

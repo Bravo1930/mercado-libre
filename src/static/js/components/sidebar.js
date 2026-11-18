@@ -23,6 +23,8 @@ export const NAV_ITEMS = [
   { id: "reports", label: "Reportes", icon: "reports" },
   { id: "ai", label: "Inteligencia artificial", icon: "ai", badge: "AI" },
   { id: "automations", label: "Automatizaciones", icon: "automations" },
+  { id: "security", label: "Ciberseguridad", icon: "shield", badge: "SOC" },
+  { id: "saas", label: "Panel SaaS", icon: "integrations", badge: "MRR" },
   { id: "integrations", label: "Integraciones", icon: "integrations" },
   { id: "settings", label: "Configuración", icon: "settings" },
 ];

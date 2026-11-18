@@ -25,9 +25,12 @@ from src.core.permissions import (
     RoleEnum,
     has_module_permission,
 )
+from src.core.quota_enforcement import QuotaEnforcementService
 from src.core.security import decode_access_token
+from src.core.session_security import SessionAnomalyDetector
 from src.models.tenant import Company
 from src.models.user import CompanyUser, User, UserSession
+from src.services.security_monitoring import SecurityEventType, SecurityMonitoringService, SecurityThreatLevel
 
 logger = get_logger("auth_context")
 http_bearer = HTTPBearer(auto_error=False)
@@ -88,6 +91,7 @@ class CompanyContext:
 
 
 async def get_current_user(
+    request: Request,
     credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(http_bearer)],
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> UserContext:
@@ -141,6 +145,21 @@ async def get_current_user(
 
     if not user or not user.is_active:
         raise AuthenticationFailedException("Usuario no encontrado o inactivo.")
+
+    # 3. Detección de secuestro de sesión y robo de tokens (Session Anomaly Matching)
+    client_ip = request.client.host if request.client else None
+    user_agent = request.headers.get("user-agent")
+    is_suspicious, anomalies = SessionAnomalyDetector.evaluate_session_consistency(user_session, client_ip, user_agent)
+    if is_suspicious:
+        await SecurityMonitoringService.record_security_incident(
+            session=session,
+            event_type=SecurityEventType.SESSION_HIJACK_ALERT,
+            severity=SecurityThreatLevel.CRITICAL,
+            description=f"Posible secuestro de sesión para usuario {user.email}: {', '.join(anomalies)}",
+            source_ip=client_ip,
+            user_id=user.id,
+            metadata={"jti": jti, "anomalies": anomalies},
+        )
 
     # Actualizar marca de tiempo de última actividad de forma ligera
     user_session.last_activity_at = now_utc
@@ -248,6 +267,15 @@ def require_company_permission(module: ModuleEnum, action: ActionEnum = ActionEn
                 f"Intento de acceso cruzado denegado: Usuario {user_ctx.email} "
                 f"intentó acceder a datos de la empresa {target_company_id}"
             )
+            await SecurityMonitoringService.record_security_incident(
+                session=db_session,
+                event_type=SecurityEventType.HORIZONTAL_ACCESS_ATTEMPT,
+                severity=SecurityThreatLevel.HIGH,
+                description=f"Usuario '{user_ctx.email}' intentó acceder sin autorización a datos de empresa ajena '{target_company_id}'",
+                source_ip=request.client.host if request.client else None,
+                company_id=target_company_id,
+                user_id=user_ctx.id,
+            )
             raise PermissionDeniedException("Acceso denegado: No perteneces a la empresa solicitada.")
 
         # 4. Determinar el rol efectivo y verificar permisos
@@ -268,10 +296,24 @@ def require_company_permission(module: ModuleEnum, action: ActionEnum = ActionEn
                 f"Permiso denegado: Usuario {user_ctx.email} con rol '{effective_role}' "
                 f"intentó '{action.value}' en módulo '{module.value}' para empresa {target_company_id}"
             )
+            await SecurityMonitoringService.record_security_incident(
+                session=db_session,
+                event_type=SecurityEventType.PRIVILEGE_ESCALATION,
+                severity=SecurityThreatLevel.HIGH,
+                description=f"Usuario '{user_ctx.email}' con rol '{effective_role}' intentó acción no permitida '{action.value}' en módulo '{module.value}'",
+                source_ip=request.client.host if request.client else None,
+                company_id=target_company_id,
+                user_id=user_ctx.id,
+                metadata={"attempted_action": action.value, "module": module.value, "role": effective_role},
+            )
             raise PermissionDeniedException(
                 f"Permiso denegado: El rol '{effective_role}' no cuenta con autorización "
                 f"para la acción '{action.value}' en el módulo '{module.value}'."
             )
+
+        # 5. Enforzamiento de Suscripción SaaS (bloqueo de escritura en clientes suspendidos o expirados)
+        if action in [ActionEnum.CREATE, ActionEnum.UPDATE, ActionEnum.DELETE]:
+            await QuotaEnforcementService.check_subscription_status(db_session, company.tenant_id)
 
         return CompanyContext(
             user_ctx=user_ctx,

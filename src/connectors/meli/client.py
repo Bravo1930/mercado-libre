@@ -14,6 +14,7 @@ from src.connectors.meli.exceptions import (
     MeliTokenExpiredException,
 )
 from src.core.logging import get_logger
+from src.core.ssrf_protection import validate_safe_url
 
 logger = get_logger("meli_client")
 
@@ -149,6 +150,8 @@ class MeliHTTPClient:
         Ejecuta una petición HTTP a Mercado Libre con reintentos y refresco automático de token.
         """
         url = endpoint if endpoint.startswith("http") else f"{self.base_url}/{endpoint.lstrip('/')}"
+        # Validación de ciberseguridad contra Server-Side Request Forgery (SSRF)
+        validate_safe_url(url)
         req_headers = {
             "Accept": "application/json",
             "User-Agent": "ERP-MercadoLibre-Connector/1.0 (Python/httpx)",
@@ -238,6 +241,8 @@ class MeliHTTPClient:
     async def download_bytes(self, endpoint: str, params: dict[str, Any] | None = None, headers: dict[str, str] | None = None) -> bytes:
         """Descarga binaria directa (por ejemplo etiquetas PDF o ZPL)."""
         url = endpoint if endpoint.startswith("http") else f"{self.base_url}/{endpoint.lstrip('/')}"
+        # Validación de ciberseguridad contra Server-Side Request Forgery (SSRF)
+        validate_safe_url(url)
         req_headers = {
             "Accept": "*/*",
             "User-Agent": "ERP-MercadoLibre-Connector/1.0",

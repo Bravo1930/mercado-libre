@@ -17,6 +17,8 @@ from src.core.database import check_database_connection, close_database_connecti
 from src.core.exceptions import AppException
 from src.core.logging import get_logger, setup_logging
 from src.core.redis import check_redis_connection, close_redis_connection
+from src.core.security_headers import SecurityHeadersMiddleware
+from src.core.rate_limiter import RateLimitMiddleware
 
 # Inicializar sistema de logs
 setup_logging()
@@ -68,6 +70,12 @@ def create_app() -> FastAPI:
         docs_url="/docs" if settings.ENVIRONMENT != "production" else None,
         redoc_url="/redoc" if settings.ENVIRONMENT != "production" else None,
     )
+
+    # Middleware de Encabezados de Seguridad (CSP, HSTS, X-Frame-Options, X-Content-Type-Options)
+    app.add_middleware(SecurityHeadersMiddleware)
+
+    # Middleware de Control de Tasa (Rate Limiting y Prevención de Fuerza Bruta / Abuso de API)
+    app.add_middleware(RateLimitMiddleware)
 
     # Middleware CORS
     app.add_middleware(

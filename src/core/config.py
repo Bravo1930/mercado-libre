@@ -4,7 +4,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -113,6 +113,29 @@ class Settings(BaseSettings):
         """Asegura que los directorios requeridos existan en el sistema."""
         v.mkdir(parents=True, exist_ok=True)
         return v
+
+    @model_validator(mode="after")
+    def validate_production_security(self) -> "Settings":
+        """
+        Garantiza estándares estrictos de ciberseguridad en entornos de producción:
+        Previene el arranque del ERP con claves por defecto, secretos de prueba o configuraciones inseguras.
+        """
+        if self.ENVIRONMENT == "production":
+            default_markers = ["dev_", "mock_", "testing", "changethis", "default"]
+            if any(m in self.JWT_SECRET_KEY.lower() for m in default_markers) or len(self.JWT_SECRET_KEY) < 32:
+                raise ValueError(
+                    "VULNERABILIDAD CRÍTICA EN PRODUCCIÓN: 'JWT_SECRET_KEY' no puede contener valores por defecto "
+                    "y debe contar con al menos 32 caracteres criptográficamente seguros."
+                )
+            if self.TOKEN_ENCRYPTION_KEY == "gK7m4a0_qN2s8u1v5x9z_B4c6e8h0j2l4n6p8r0t2v4=":
+                raise ValueError(
+                    "VULNERABILIDAD CRÍTICA EN PRODUCCIÓN: 'TOKEN_ENCRYPTION_KEY' no puede usar la clave dev por defecto."
+                )
+            if any(m in self.INTERNAL_API_KEY.lower() for m in default_markers):
+                raise ValueError(
+                    "VULNERABILIDAD CRÍTICA EN PRODUCCIÓN: 'INTERNAL_API_KEY' debe ser configurada con un secreto productivo."
+                )
+        return self
 
 
 @lru_cache(maxsize=1)

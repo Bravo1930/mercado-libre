@@ -4,13 +4,15 @@ from datetime import datetime
 from typing import Any
 import uuid
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Header, status
+from fastapi import APIRouter, BackgroundTasks, Depends, Header, Request, status
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.database import get_db, get_session_factory
 from src.core.logging import get_logger
 from src.core.redis import enqueue_webhook_event
+from src.core.webhook_security import verify_meli_webhook_signature, WebhookSecurityException
+from src.services.security_monitoring import SecurityMonitoringService, SecurityEventType, SecurityThreatLevel
 from src.services.sync_service import SyncService
 
 logger = get_logger("webhooks")
@@ -47,8 +49,10 @@ async def _process_event_in_background(event_id: uuid.UUID) -> None:
 @router.post("/meli", status_code=status.HTTP_200_OK)
 async def meli_webhook_receiver(
     payload: MeliWebhookPayload,
+    request: Request,
     background_tasks: BackgroundTasks,
     session: AsyncSession = Depends(get_db),
+    x_signature: str | None = Header(None, alias="x-signature"),
     x_forwarded_for: str | None = Header(None),
 ) -> dict[str, Any]:
     """
@@ -60,13 +64,31 @@ async def meli_webhook_receiver(
     Por ello, se registra de inmediato con control de duplicados, se encola en Redis / BackgroundTasks
     y se delega el procesamiento asíncrono.
     """
+    client_ip = x_forwarded_for or (request.client.host if request.client else "127.0.0.1")
+
+    # 1. Validación de Firma Criptográfica y Mitigación de Ataques de Repetición
+    raw_payload = payload.model_dump(by_alias=True, mode="json")
+    try:
+        import json
+        raw_body = json.dumps(raw_payload).encode("utf-8")
+        verify_meli_webhook_signature(x_signature, raw_body)
+    except WebhookSecurityException as exc:
+        await SecurityMonitoringService.record_security_incident(
+            session=session,
+            event_type=SecurityEventType.REPLAY_ATTACK if "expirado" in exc.message else "INVALID_WEBHOOK_SIGNATURE",
+            severity=SecurityThreatLevel.CRITICAL if "expirado" in exc.message else SecurityThreatLevel.HIGH,
+            description=f"Intento de vulneración de webhook: {exc.message}",
+            source_ip=client_ip,
+            metadata=exc.details,
+        )
+        raise exc
+
     logger.info(
         f"Webhook recibido: topic='{payload.topic}', user_id={payload.user_id}, "
         f"resource='{payload.resource}', attempts={payload.attempts}"
     )
 
-    # 1. Registro e Idempotencia en Base de Datos
-    raw_payload = payload.model_dump(by_alias=True, mode="json")
+    # 2. Registro e Idempotencia en Base de Datos
     try:
         event = await sync_service.register_webhook_event(session, raw_payload)
         await session.commit()
@@ -87,7 +109,7 @@ async def meli_webhook_receiver(
             "duplicate": True,
         }
 
-    # 2. Despachar a segundo plano (BackgroundTasks para local/tests y Redis para worker distribuido)
+    # 3. Despachar a segundo plano (BackgroundTasks para local/tests y Redis para worker distribuido)
     background_tasks.add_task(_process_event_in_background, event.id)
 
     try:
