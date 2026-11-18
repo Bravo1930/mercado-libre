@@ -26,7 +26,17 @@ from src.models.internal_label import InternalLabelPrintBatch, InternalLabelTemp
 from src.models.promotion import Promotion, PromotionItem
 from src.models.setting import CompanySetting
 from src.models.shipment import Shipment, ShipmentPrintLog
-from src.models.supplier import PurchaseOrder, PurchaseOrderItem, Supplier
+from src.models.supplier import (
+    GoodsReceipt,
+    GoodsReceiptItem,
+    PurchaseExpense,
+    PurchaseInvoice,
+    PurchaseOrder,
+    PurchaseOrderItem,
+    Supplier,
+    SupplierEvaluation,
+    SupplierProduct,
+)
 from src.models.sync import SyncEvent, SyncReconciliationLog
 from src.models.tenant import Company, Tenant
 from src.models.user import CompanyUser, PasswordResetToken, User, UserSession
@@ -87,8 +97,14 @@ __all__ = [
     "FinancialTransaction",
     "FinancialDiscrepancy",
     "Supplier",
+    "SupplierProduct",
+    "SupplierEvaluation",
     "PurchaseOrder",
     "PurchaseOrderItem",
+    "GoodsReceipt",
+    "GoodsReceiptItem",
+    "PurchaseInvoice",
+    "PurchaseExpense",
     "CompanySetting",
     "AuditLog",
     "SyncEvent",
