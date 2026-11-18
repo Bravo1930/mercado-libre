@@ -44,6 +44,18 @@ class EntityAlreadyExistsException(AppException):
         )
 
 
+class DuplicateEntityException(AppException):
+    """Conflicto por entidad o clave única duplicada."""
+
+    def __init__(self, message: str, details: dict[str, Any] | None = None):
+        super().__init__(
+            message=message,
+            status_code=409,
+            code="DUPLICATE_ENTITY",
+            details=details or {},
+        )
+
+
 class BusinessRuleViolationException(AppException):
     """Violación de reglas de negocio o validación de dominio."""
 

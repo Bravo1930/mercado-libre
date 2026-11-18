@@ -33,8 +33,9 @@ class ApiClient {
     }
 
     // Inyectar contexto de empresa activa
-    if (state.currentCompany && state.currentCompany.company_id) {
-      headers["X-Company-ID"] = state.currentCompany.company_id;
+    const compId = state.currentCompany ? (state.currentCompany.id || state.currentCompany.company_id) : null;
+    if (compId) {
+      headers["X-Company-ID"] = compId;
     }
 
     try {
@@ -89,8 +90,65 @@ class ApiClient {
     return this.request(endpoint, { method: "PUT", body: JSON.stringify(body), ...options });
   }
 
+  patch(endpoint, body = {}, options = {}) {
+    return this.request(endpoint, { method: "PATCH", body: JSON.stringify(body), ...options });
+  }
+
   delete(endpoint, options = {}) {
     return this.request(endpoint, { method: "DELETE", ...options });
+  }
+
+  async upload(endpoint, formData, options = {}) {
+    const url = new URL(`${BASE_URL}${endpoint}`, window.location.origin);
+    const headers = { ...(options.headers || {}) };
+    if (state.token) headers["Authorization"] = `Bearer ${state.token}`;
+    const compId = state.currentCompany ? (state.currentCompany.id || state.currentCompany.company_id) : null;
+    if (compId) headers["X-Company-ID"] = compId;
+
+    try {
+      const response = await fetch(url.toString(), {
+        method: "POST",
+        body: formData,
+        headers,
+      });
+
+      if (!response.ok) {
+        let errData;
+        try {
+          errData = await response.json();
+        } catch {
+          errData = { error: `Error HTTP ${response.status}` };
+        }
+        throw new Error(errData.error || errData.message || "Error al subir archivo");
+      }
+      return await response.json();
+    } catch (err) {
+      console.error(`[API UPLOAD ERROR] ${endpoint}:`, err);
+      throw err;
+    }
+  }
+
+  async downloadBlob(endpoint, options = {}) {
+    const url = new URL(`${BASE_URL}${endpoint}`, window.location.origin);
+    const headers = { ...(options.headers || {}) };
+    if (state.token) headers["Authorization"] = `Bearer ${state.token}`;
+    const compId = state.currentCompany ? (state.currentCompany.id || state.currentCompany.company_id) : null;
+    if (compId) headers["X-Company-ID"] = compId;
+
+    try {
+      const response = await fetch(url.toString(), {
+        method: "GET",
+        headers,
+      });
+
+      if (!response.ok) {
+        throw new Error(`Error descargando archivo (HTTP ${response.status})`);
+      }
+      return await response.blob();
+    } catch (err) {
+      console.error(`[API DOWNLOAD ERROR] ${endpoint}:`, err);
+      throw err;
+    }
   }
 }
 

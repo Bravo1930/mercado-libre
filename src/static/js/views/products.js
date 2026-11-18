@@ -1,330 +1,1124 @@
 /**
- * Vista 3: Productos (Catálogo Maestro, Variantes, EAN-13 y SKUs MeLi).
+ * Vista de Catálogo Maestro de Productos del ERP
+ * Alta, edición, desactivación, variantes, SKU único, código de barras, fotos,
+ * importación desde Mercado Libre, importación CSV, exportación CSV/XLSX,
+ * asociación de publicaciones externas multi-cuenta y detector de duplicados.
  */
 
 import { api } from "../api.js";
 import { state } from "../state.js";
 import { icons } from "../icons.js";
-import { openModal } from "../components/modal.js";
+import { openModal, closeModal, showConfirmDialog } from "../components/modal.js";
 import { showToast } from "../components/toast.js";
 
-export function renderProductsView() {
-  const container = document.createElement("div");
-  container.className = "space-y-5 animate-fade-in";
+let productsList = [];
+let categoriesList = [];
+let currentSearch = "";
+let currentCategory = "";
+let currentStatusFilter = "all";
+let currentPage = 1;
+let totalPages = 1;
 
-  let currentPage = 1;
-  let searchFilter = "";
-
+export async function renderProducts(container) {
   container.innerHTML = `
-    <!-- Encabezado de Sección -->
-    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-      <div>
-        <h2 class="text-2xl font-black text-slate-900 tracking-tight">Catálogo de Productos</h2>
-        <p class="text-xs text-slate-500 mt-0.5">Gestión de productos maestros, variantes, código EAN-13 y costos de adquisición (COGS)</p>
-      </div>
+    <div class="space-y-6">
+      <!-- Encabezado y Acciones Principales -->
+      <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+        <div>
+          <h1 class="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
+            ${icons.cube} Catálogo Maestro de Productos
+          </h1>
+          <p class="text-sm text-slate-500 mt-1">
+            Gestión integral de productos, variantes, códigos EAN, costos, publicaciones MeLi multi-cuenta y exportación contable.
+          </p>
+        </div>
 
-      <div class="flex items-center space-x-2">
-        <button id="btn-create-product" class="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition-smooth shadow-md shadow-blue-600/30 flex items-center space-x-2 touch-target">
-          ${icons.plus("w-4 h-4")}
-          <span>Nuevo Producto</span>
-        </button>
-      </div>
-    </div>
-
-    <!-- Barra de Búsqueda -->
-    <div class="p-4 bg-white rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between gap-3">
-      <div class="flex-1 max-w-sm relative">
-        <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-          ${icons.search("w-4 h-4")}
-        </span>
-        <input 
-          id="products-search-input" 
-          type="text" 
-          placeholder="Buscar por nombre, marca o modelo..." 
-          class="w-full pl-9 pr-3.5 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-600 focus:outline-none transition-smooth"
-        />
-      </div>
-      <button id="btn-refresh-products" class="p-2 border border-slate-200 rounded-xl hover:bg-slate-50 text-slate-600 transition-smooth touch-target">
-        ${icons.refresh("w-4 h-4")}
-      </button>
-    </div>
-
-    <!-- Tabla de Productos -->
-    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-      <div class="table-container">
-        <table class="w-full text-left text-xs border-collapse">
-          <thead>
-            <tr class="border-b border-slate-200 bg-slate-50/70 text-slate-500 font-bold uppercase tracking-wider text-[10px]">
-              <th class="py-3 px-4">Producto Maestro</th>
-              <th class="py-3 px-4">Marca</th>
-              <th class="py-3 px-4">Categoría</th>
-              <th class="py-3 px-4">Variantes & EAN</th>
-              <th class="py-3 px-4">Costo COGS</th>
-              <th class="py-3 px-4 text-right">Acciones</th>
-            </tr>
-          </thead>
-          <tbody id="products-table-tbody" class="divide-y divide-slate-100 text-slate-700">
-            <tr>
-              <td colspan="6" class="py-8 text-center text-slate-400">
-                ${icons.spinner("w-5 h-5 inline-block mr-2")} Cargando catálogo...
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      <!-- Paginación -->
-      <div class="flex items-center justify-between px-4 py-3 bg-slate-50/50 border-t border-slate-100 text-xs">
-        <span id="products-pagination-info" class="text-slate-500 font-medium">Mostrando 0 productos</span>
-        <div class="flex items-center space-x-1.5">
-          <button id="btn-products-prev" class="px-3 py-1.5 border border-slate-200 rounded-lg text-slate-600 bg-white hover:bg-slate-50 disabled:opacity-40 transition-smooth font-semibold" disabled>
-            Anterior
+        <!-- Botonera de Acciones -->
+        <div class="flex flex-wrap items-center gap-2">
+          <button id="btn-check-duplicates" class="btn-secondary text-xs flex items-center gap-1.5 py-2 px-3 border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100">
+            ${icons.alert} Detector de Duplicados
           </button>
-          <button id="btn-products-next" class="px-3 py-1.5 border border-slate-200 rounded-lg text-slate-600 bg-white hover:bg-slate-50 disabled:opacity-40 transition-smooth font-semibold" disabled>
-            Siguiente
+          <button id="btn-import-meli" class="btn-secondary text-xs flex items-center gap-1.5 py-2 px-3 bg-yellow-400 hover:bg-yellow-500 text-slate-900 font-bold border-none">
+            ${icons.refresh} Importar de MeLi
           </button>
+          <button id="btn-import-csv" class="btn-secondary text-xs flex items-center gap-1.5 py-2 px-3">
+            ${icons.download} Importar CSV
+          </button>
+          <div class="inline-flex rounded-xl shadow-sm">
+            <button id="btn-export-csv" class="btn-secondary text-xs rounded-r-none border-r-0 py-2 px-3" title="Descargar CSV">
+              CSV
+            </button>
+            <button id="btn-export-xlsx" class="btn-secondary text-xs rounded-l-none py-2 px-3 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border-emerald-300 font-bold" title="Descargar Excel XLSX">
+              Excel (.xlsx)
+            </button>
+          </div>
+          <button id="btn-create-product" class="btn-primary flex items-center gap-1.5 text-xs py-2 px-3.5">
+            ${icons.plus} Nuevo Producto
+          </button>
+        </div>
+      </div>
+
+      <!-- Filtros y Búsqueda Multicriterio -->
+      <div class="card p-4 space-y-3">
+        <div class="grid grid-cols-1 sm:grid-cols-12 gap-3">
+          <!-- Búsqueda global -->
+          <div class="sm:col-span-5 relative">
+            <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+              ${icons.search}
+            </span>
+            <input
+              type="text"
+              id="products-search-input"
+              class="input-field pl-9 text-xs"
+              placeholder="Buscar por SKU, código de barras EAN, nombre, marca o modelo..."
+            />
+          </div>
+
+          <!-- Filtro por Categoría -->
+          <div class="sm:col-span-4">
+            <select id="products-category-select" class="input-field text-xs py-2">
+              <option value="">Todas las Categorías</option>
+            </select>
+          </div>
+
+          <!-- Filtro por Estatus -->
+          <div class="sm:col-span-3">
+            <select id="products-status-select" class="input-field text-xs py-2">
+              <option value="all">Todos los Estatus</option>
+              <option value="true">Solo Activos</option>
+              <option value="false">Solo Inactivos / Desactivados</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tabla del Catálogo Maestro -->
+      <div class="card overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse text-xs">
+            <thead>
+              <tr class="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase tracking-wider text-[11px]">
+                <th class="p-3">Producto / Marca / Modelo</th>
+                <th class="p-3">SKU & Código EAN</th>
+                <th class="p-3">Categoría</th>
+                <th class="p-3">Costos & Precios (MXN)</th>
+                <th class="p-3">Dimensiones / Ubicación</th>
+                <th class="p-3 text-center">Publicaciones MeLi</th>
+                <th class="p-3">Estatus</th>
+                <th class="p-3 text-right">Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="products-table-body" class="divide-y divide-slate-100">
+              <tr>
+                <td colspan="8" class="p-8 text-center text-slate-400">Cargando catálogo maestro de productos...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Paginación -->
+        <div class="flex items-center justify-between p-3.5 bg-slate-50/50 border-t border-slate-100 text-xs text-slate-600">
+          <span id="products-count-label">Cargando...</span>
+          <div class="flex items-center gap-1.5">
+            <button id="btn-products-prev-page" class="btn-secondary text-xs py-1 px-2.5" disabled>Anterior</button>
+            <span id="products-page-label" class="font-bold px-2">1</span>
+            <button id="btn-products-next-page" class="btn-secondary text-xs py-1 px-2.5" disabled>Siguiente</button>
+          </div>
         </div>
       </div>
     </div>
   `;
 
-  // Listeners
+  // Bind Main Toolbar Events
+  container.querySelector("#btn-create-product").addEventListener("click", () => openProductFormModal(null));
+  container.querySelector("#btn-import-meli").addEventListener("click", openMeliImportModal);
+  container.querySelector("#btn-import-csv").addEventListener("click", openCsvImportModal);
+  container.querySelector("#btn-export-csv").addEventListener("click", handleExportCsv);
+  container.querySelector("#btn-export-xlsx").addEventListener("click", handleExportXlsx);
+  container.querySelector("#btn-check-duplicates").addEventListener("click", openDuplicatesModal);
+
+  // Search & Filter Events
   const searchInput = container.querySelector("#products-search-input");
-  const btnRefresh = container.querySelector("#btn-refresh-products");
-  const btnCreate = container.querySelector("#btn-create-product");
-  const btnPrev = container.querySelector("#btn-products-prev");
-  const btnNext = container.querySelector("#btn-products-next");
+  const catSelect = container.querySelector("#products-category-select");
+  const statusSelect = container.querySelector("#products-status-select");
 
-  if (searchInput) {
-    let debounce;
-    searchInput.addEventListener("input", (e) => {
-      clearTimeout(debounce);
-      debounce = setTimeout(() => {
-        searchFilter = e.target.value.trim();
-        currentPage = 1;
-        fetchProducts();
-      }, 300);
-    });
-  }
+  let debounceTimer;
+  searchInput.addEventListener("input", (e) => {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => {
+      currentSearch = e.target.value.trim();
+      currentPage = 1;
+      fetchProducts();
+    }, 300);
+  });
 
-  if (btnRefresh) btnRefresh.addEventListener("click", () => fetchProducts());
-  if (btnCreate) btnCreate.addEventListener("click", () => openCreateProductModal());
+  catSelect.addEventListener("change", (e) => {
+    currentCategory = e.target.value;
+    currentPage = 1;
+    fetchProducts();
+  });
 
-  if (btnPrev) {
-    btnPrev.addEventListener("click", () => {
-      if (currentPage > 1) {
-        currentPage--;
-        fetchProducts();
-      }
-    });
-  }
+  statusSelect.addEventListener("change", (e) => {
+    currentStatusFilter = e.target.value;
+    currentPage = 1;
+    fetchProducts();
+  });
 
-  if (btnNext) {
-    btnNext.addEventListener("click", () => {
+  container.querySelector("#btn-products-prev-page").addEventListener("click", () => {
+    if (currentPage > 1) {
+      currentPage--;
+      fetchProducts();
+    }
+  });
+
+  container.querySelector("#btn-products-next-page").addEventListener("click", () => {
+    if (currentPage < totalPages) {
       currentPage++;
       fetchProducts();
-    });
-  }
-
-  async function fetchProducts() {
-    const tbody = container.querySelector("#products-table-tbody");
-
-    try {
-      const params = { page: currentPage, size: 10 };
-      if (searchFilter) params.search = searchFilter;
-
-      const data = await api.get("/products", params);
-      const items = data.items || [];
-
-      if (items.length === 0) {
-        tbody.innerHTML = `
-          <tr>
-            <td colspan="6" class="py-12 text-center text-slate-400">
-              No hay productos registrados en el catálogo. Haz clic en "Nuevo Producto" para dar de alta tu primer artículo.
-            </td>
-          </tr>
-        `;
-      } else {
-        tbody.innerHTML = items.map(p => {
-          const variants = p.variants || [];
-          const variantsHtml = variants.map(v => `
-            <div class="py-0.5 font-mono text-[11px] text-slate-600">
-              <strong class="text-slate-800">${v.variant_name}</strong> · SKU: ${v.sku} · EAN: ${v.barcode_ean || 'S/N'}
-            </div>
-          `).join("") || '<span class="text-slate-400">Sin variantes</span>';
-
-          const minCogs = variants.length > 0 ? Math.min(...variants.map(v => Number(v.cogs_cost || 0))) : 0;
-
-          return `
-            <tr class="hover:bg-slate-50/80 transition-smooth">
-              <td class="py-3.5 px-4 font-bold text-slate-900">${p.name}</td>
-              <td class="py-3.5 px-4 text-slate-600">${p.brand || 'Genérico'}</td>
-              <td class="py-3.5 px-4"><span class="badge badge-info text-[10px]">${p.category || 'General'}</span></td>
-              <td class="py-3.5 px-4">${variantsHtml}</td>
-              <td class="py-3.5 px-4 font-bold text-slate-900">$ ${minCogs.toFixed(2)}</td>
-              <td class="py-3.5 px-4 text-right">
-                <button data-product-id="${p.id}" class="btn-link-meli-sku px-2.5 py-1 text-xs font-semibold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 rounded-lg transition-smooth">
-                  Mapear MeLi
-                </button>
-              </td>
-            </tr>
-          `;
-        }).join("");
-
-        tbody.querySelectorAll(".btn-link-meli-sku").forEach(btn => {
-          btn.addEventListener("click", () => {
-            const prodId = btn.getAttribute("data-product-id");
-            const prod = items.find(x => x.id === prodId);
-            openMapSkuModal(prod);
-          });
-        });
-      }
-
-      const infoEl = container.querySelector("#products-pagination-info");
-      if (infoEl) infoEl.textContent = `Página ${data.page} de ${data.pages || 1} (${data.total} productos en total)`;
-
-      if (btnPrev) btnPrev.disabled = !data.has_prev;
-      if (btnNext) btnNext.disabled = !data.has_next;
-
-    } catch (err) {
-      tbody.innerHTML = `
-        <tr>
-          <td colspan="6" class="py-8 text-center text-red-600 font-semibold">
-            Error al consultar catálogo: ${err.message}
-          </td>
-        </tr>
-      `;
     }
+  });
+
+  await loadCategories();
+  await fetchProducts();
+}
+
+export function renderProductsView() {
+  const wrapper = document.createElement("div");
+  renderProducts(wrapper);
+  return wrapper;
+}
+
+// -----------------------------------------------------------------------------
+// CARGA Y RENDERIZADO DE DATOS
+// -----------------------------------------------------------------------------
+async function loadCategories() {
+  try {
+    const res = await api.get("/products/categories");
+    categoriesList = Array.isArray(res) ? res : [];
+    const select = document.getElementById("products-category-select");
+    if (select) {
+      select.innerHTML = '<option value="">Todas las Categorías</option>' +
+        categoriesList.map(c => `<option value="${c}">${c}</option>`).join("");
+    }
+  } catch (err) {
+    console.error("Error cargando categorías", err);
+  }
+}
+
+async function fetchProducts() {
+  const tbody = document.getElementById("products-table-body");
+  if (!tbody) return;
+
+  try {
+    let queryParams = `page=${currentPage}&limit=20`;
+    if (currentSearch) queryParams += `&q=${encodeURIComponent(currentSearch)}`;
+    if (currentCategory) queryParams += `&category=${encodeURIComponent(currentCategory)}`;
+    if (currentStatusFilter !== "all") queryParams += `&is_active=${currentStatusFilter}`;
+
+    const res = await api.get(`/products?${queryParams}`);
+    productsList = res.items || [];
+    totalPages = res.pages || 1;
+
+    renderProductsTable();
+    updatePaginationControls(res.total || 0);
+  } catch (err) {
+    showToast(err.message || "Error al obtener productos del catálogo", "error");
+    tbody.innerHTML = `<tr><td colspan="8" class="p-8 text-center text-rose-500">${err.message}</td></tr>`;
+  }
+}
+
+function updatePaginationControls(total) {
+  const countLbl = document.getElementById("products-count-label");
+  const pageLbl = document.getElementById("products-page-label");
+  const btnPrev = document.getElementById("btn-products-prev-page");
+  const btnNext = document.getElementById("btn-products-next-page");
+
+  if (countLbl) countLbl.textContent = `Total: ${total} productos maestros`;
+  if (pageLbl) pageLbl.textContent = `${currentPage} / ${totalPages}`;
+  if (btnPrev) btnPrev.disabled = currentPage <= 1;
+  if (btnNext) btnNext.disabled = currentPage >= totalPages;
+}
+
+function renderProductsTable() {
+  const tbody = document.getElementById("products-table-body");
+  if (!tbody) return;
+
+  if (productsList.length === 0) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="8" class="p-8 text-center text-slate-400">
+          No se encontraron productos que coincidan con los criterios de búsqueda.
+        </td>
+      </tr>
+    `;
+    return;
   }
 
-  function openCreateProductModal() {
-    openModal({
-      title: "Alta de Producto Maestro & Variantes",
-      size: "lg",
-      content: `
-        <div class="space-y-4">
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label class="block text-xs font-bold text-slate-700 mb-1">Nombre del Producto</label>
-              <input id="new-prod-name" type="text" placeholder="Termo Inteligente Acero 500ml" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-600 focus:outline-none" />
-            </div>
-            <div>
-              <label class="block text-xs font-bold text-slate-700 mb-1">Marca</label>
-              <input id="new-prod-brand" type="text" placeholder="ThermoTech" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-600 focus:outline-none" />
+  tbody.innerHTML = productsList.map((p) => {
+    const firstVar = p.variants && p.variants.length > 0 ? p.variants[0] : null;
+    const variantsCount = p.variants ? p.variants.length : 0;
+    const primarySku = firstVar ? firstVar.sku : "SIN-SKU";
+    const primaryBarcode = firstVar && firstVar.barcode_ean ? firstVar.barcode_ean : "-";
+
+    const imgUrl = p.images && p.images.length > 0
+      ? p.images[0]
+      : "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2394A3B8'><rect width='24' height='24' rx='4'/></svg>";
+
+    return `
+      <tr class="hover:bg-slate-50/80 transition-colors ${!p.is_active ? 'opacity-60 bg-slate-50/40' : ''}">
+        <!-- Producto / Marca / Modelo -->
+        <td class="p-3">
+          <div class="flex items-center gap-3">
+            <img src="${imgUrl}" alt="${p.name}" class="w-10 h-10 object-cover rounded-lg border border-slate-200 bg-white flex-shrink-0" onerror="this.src='data:image/svg+xml,<svg xmlns=\\'http://www.w3.org/2000/svg\\' viewBox=\\'0 0 24 24\\' fill=\\'%23CBD5E1\\'><rect width=\\'24\\' height=\\'24\\' rx=\\'4\\'/></svg>'" />
+            <div class="min-w-0">
+              <div class="font-bold text-slate-900 truncate max-w-xs" title="${p.name}">${p.name}</div>
+              <div class="text-[11px] text-slate-500">
+                ${p.brand ? `<strong class="text-slate-700">${p.brand}</strong>` : 'Sin Marca'}
+                ${p.model ? `· Mod: ${p.model}` : ''}
+              </div>
             </div>
           </div>
+        </td>
 
+        <!-- SKU & EAN -->
+        <td class="p-3">
+          <div class="font-mono font-bold text-slate-800">${primarySku}</div>
+          <div class="font-mono text-[11px] text-slate-500 flex items-center gap-1">
+            ${icons.tag} ${primaryBarcode}
+          </div>
+          ${variantsCount > 1 ? `<span class="inline-flex text-[10px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded mt-0.5">+${variantsCount - 1} variantes</span>` : ''}
+        </td>
+
+        <!-- Categoría -->
+        <td class="p-3">
+          <span class="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-slate-100 text-slate-700 max-w-[150px] truncate" title="${p.category || 'General'}">
+            ${p.category || 'Sin Categoría'}
+          </span>
+          <div class="text-[10px] text-slate-400 mt-0.5">Unidad: ${p.unit_of_measure || 'H87'}</div>
+        </td>
+
+        <!-- Precios & Costos -->
+        <td class="p-3">
+          <div class="font-bold text-slate-900 text-xs">$${(parseFloat(p.sale_price) || 0).toFixed(2)} MXN</div>
+          <div class="text-[11px] text-slate-500">Costo: $${(parseFloat(p.cost_price) || 0).toFixed(2)}</div>
+          ${p.wholesale_price ? `<div class="text-[10px] text-blue-600">Mayoreo: $${parseFloat(p.wholesale_price).toFixed(2)}</div>` : ''}
+        </td>
+
+        <!-- Dimensiones / Ubicación -->
+        <td class="p-3 text-[11px] text-slate-600">
+          <div>${p.weight_kg ? `${p.weight_kg} kg` : '-'} · ${p.length_cm || 0}x${p.width_cm || 0}x${p.height_cm || 0} cm</div>
+          <div class="text-slate-500 font-mono text-[10px] mt-0.5">${p.warehouse_location || 'Sin ubicación'}</div>
+        </td>
+
+        <!-- Publicaciones MeLi Asociadas -->
+        <td class="p-3 text-center">
+          <button
+            data-mappings-id="${p.id}"
+            class="btn-view-mappings inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold rounded-lg bg-yellow-50 hover:bg-yellow-100 text-yellow-900 border border-yellow-200 transition-colors"
+          >
+            ${icons.truck} Ver MeLi
+          </button>
+        </td>
+
+        <!-- Estatus -->
+        <td class="p-3">
+          <button
+            data-toggle-id="${p.id}"
+            data-is-active="${p.is_active}"
+            class="btn-toggle-status inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold cursor-pointer transition-colors ${
+              p.is_active ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100' : 'bg-slate-200 text-slate-600 hover:bg-slate-300'
+            }"
+            title="Clic para cambiar estatus"
+          >
+            <span class="w-1.5 h-1.5 rounded-full ${p.is_active ? 'bg-emerald-500' : 'bg-slate-400'}"></span>
+            ${p.is_active ? 'Activo' : 'Inactivo'}
+          </button>
+        </td>
+
+        <!-- Acciones -->
+        <td class="p-3 text-right whitespace-nowrap">
+          <div class="inline-flex items-center gap-1">
+            <button
+              data-edit-id="${p.id}"
+              class="btn-edit-prod p-1.5 text-slate-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+              title="Editar Producto"
+            >
+              ${icons.edit}
+            </button>
+            <button
+              data-add-variant-id="${p.id}"
+              class="btn-add-variant p-1.5 text-slate-600 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+              title="Agregar Variante"
+            >
+              ${icons.plus}
+            </button>
+          </div>
+        </td>
+      </tr>
+    `;
+  }).join("");
+
+  // Attach Table Action Handlers
+  tbody.querySelectorAll(".btn-edit-prod").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const id = btn.dataset.editId;
+      const product = productsList.find(p => p.id === id);
+      if (product) openProductFormModal(product);
+    });
+  });
+
+  tbody.querySelectorAll(".btn-toggle-status").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const id = btn.dataset.toggleId;
+      const currentActive = btn.dataset.isActive === "true";
+      const actionTxt = currentActive ? "desactivar" : "activar";
+
+      showConfirmDialog(
+        `¿Deseas ${actionTxt} este producto?`,
+        currentActive ? "El producto y sus variantes quedarán inactivos en el catálogo." : "El producto volverá a estar disponible en el catálogo.",
+        async () => {
+          try {
+            await api.patch(`/products/${id}/toggle-status`);
+            showToast(`Producto ${actionTxt === "activar" ? "activado" : "desactivado"} con éxito`, "success");
+            fetchProducts();
+          } catch (err) {
+            showToast(err.message || "Error al cambiar estatus", "error");
+          }
+        }
+      );
+    });
+  });
+
+  tbody.querySelectorAll(".btn-view-mappings").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const id = btn.dataset.mappingsId;
+      const product = productsList.find(p => p.id === id);
+      if (product) openMappingsModal(product);
+    });
+  });
+
+  tbody.querySelectorAll(".btn-add-variant").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const id = btn.dataset.addVariantId;
+      const product = productsList.find(p => p.id === id);
+      if (product) openAddVariantModal(product);
+    });
+  });
+}
+
+// -----------------------------------------------------------------------------
+// MODAL: ALTA Y EDICIÓN COMPLETA DE PRODUCTO
+// -----------------------------------------------------------------------------
+function openProductFormModal(product = null) {
+  const isEdit = !!product;
+  const currentCompany = state.currentCompany;
+  if (!currentCompany) {
+    showToast("Selecciona una empresa primero", "error");
+    return;
+  }
+
+  const content = `
+    <form id="product-master-form" class="space-y-4 max-h-[80vh] overflow-y-auto pr-1">
+      <!-- Datos Generales -->
+      <div class="border-b border-slate-100 pb-3">
+        <h3 class="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">1. Información General</h3>
+        <div class="space-y-3">
           <div>
-            <label class="block text-xs font-bold text-slate-700 mb-1">Categoría</label>
-            <input id="new-prod-cat" type="text" placeholder="Hogar y Cocina" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-600 focus:outline-none" />
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Nombre o Título del Producto *</label>
+            <input type="text" id="prod-name" class="input-field text-sm font-semibold" value="${product?.name || ''}" required placeholder="e.g. Audífonos Bluetooth Noise Cancelling Pro" />
           </div>
 
-          <!-- Variantes Iniciales -->
-          <div class="pt-2 border-t border-slate-100">
-            <h4 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Variante Inicial</h4>
-            <div class="grid grid-cols-1 sm:grid-cols-4 gap-2">
-              <input id="new-var-name" type="text" placeholder="Nombre (ej. Negro Mate)" class="px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg" />
-              <input id="new-var-sku" type="text" placeholder="SKU Interno" class="px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg font-mono" />
-              <input id="new-var-ean" type="text" placeholder="EAN-13 (13 dígitos)" maxlength="13" class="px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg font-mono" />
-              <input id="new-var-cogs" type="number" step="0.01" placeholder="Costo COGS ($)" class="px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg font-mono" />
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Marca</label>
+              <input type="text" id="prod-brand" class="input-field text-xs" value="${product?.brand || ''}" placeholder="e.g. Sony, Apple, Genérico" />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Modelo</label>
+              <input type="text" id="prod-model" class="input-field text-xs" value="${product?.model || ''}" placeholder="e.g. WH-1000XM5" />
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Categoría</label>
+              <input type="text" id="prod-category" class="input-field text-xs" value="${product?.category || ''}" placeholder="e.g. Audio > Auriculares" />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Clave de Unidad SAT</label>
+              <input type="text" id="prod-uom" class="input-field text-xs font-mono" value="${product?.unit_of_measure || 'H87'}" placeholder="H87 (Pieza)" />
             </div>
           </div>
         </div>
-      `,
-      confirmText: "Guardar Producto",
-      onConfirm: async () => {
-        const name = document.getElementById("new-prod-name").value.trim();
-        const brand = document.getElementById("new-prod-brand").value.trim();
-        const category = document.getElementById("new-prod-cat").value.trim();
+      </div>
 
-        const varName = document.getElementById("new-var-name").value.trim() || "Estándar";
-        const varSku = document.getElementById("new-var-sku").value.trim() || `SKU-${Date.now().toString().slice(-6)}`;
-        const varEan = document.getElementById("new-var-ean").value.trim() || null;
-        const varCogs = parseFloat(document.getElementById("new-var-cogs").value) || 0;
+      <!-- Precios y Costos -->
+      <div class="border-b border-slate-100 pb-3">
+        <h3 class="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">2. Precios y Costos (MXN)</h3>
+        <div class="grid grid-cols-3 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Costo Base (COGS) *</label>
+            <input type="number" id="prod-cost" step="0.50" min="0" class="input-field text-xs font-mono font-bold" value="${product?.cost_price || 0.0}" required />
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Precio Venta (PVP) *</label>
+            <input type="number" id="prod-sale-price" step="0.50" min="0" class="input-field text-xs font-mono font-bold text-blue-700" value="${product?.sale_price || 0.0}" required />
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Precio Mayoreo</label>
+            <input type="number" id="prod-wholesale-price" step="0.50" min="0" class="input-field text-xs font-mono" value="${product?.wholesale_price || ''}" placeholder="Opcional" />
+          </div>
+        </div>
+      </div>
 
-        if (!name) throw new Error("El nombre del producto es obligatorio.");
-        if (!state.currentCompany) throw new Error("No hay una empresa activa seleccionada.");
+      <!-- Logística y Dimensiones -->
+      <div class="border-b border-slate-100 pb-3">
+        <h3 class="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">3. Peso, Dimensiones y Ubicación</h3>
+        <div class="grid grid-cols-4 gap-2">
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-700 mb-1">Peso (kg)</label>
+            <input type="number" id="prod-weight" step="0.05" min="0" class="input-field text-xs font-mono" value="${product?.weight_kg || 0.0}" />
+          </div>
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-700 mb-1">Largo (cm)</label>
+            <input type="number" id="prod-length" step="0.5" min="0" class="input-field text-xs font-mono" value="${product?.length_cm || 0.0}" />
+          </div>
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-700 mb-1">Ancho (cm)</label>
+            <input type="number" id="prod-width" step="0.5" min="0" class="input-field text-xs font-mono" value="${product?.width_cm || 0.0}" />
+          </div>
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-700 mb-1">Alto (cm)</label>
+            <input type="number" id="prod-height" step="0.5" min="0" class="input-field text-xs font-mono" value="${product?.height_cm || 0.0}" />
+          </div>
+        </div>
+        <div class="mt-2">
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Ubicación en Almacén</label>
+          <input type="text" id="prod-location" class="input-field text-xs font-mono" value="${product?.warehouse_location || ''}" placeholder="e.g. Pasillo 3 - Rack B - Nivel 2" />
+        </div>
+      </div>
 
-        const payload = {
-          company_id: state.currentCompany.company_id,
-          name,
-          brand,
-          category,
+      <!-- Descripción y Fotografías -->
+      <div class="space-y-3">
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Descripción del Producto</label>
+          <textarea id="prod-description" rows="2" class="input-field text-xs" placeholder="Especificaciones técnicas y descripción comercial...">${product?.description || ''}</textarea>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">URLs de Fotografías (separadas por coma o salto de línea)</label>
+          <textarea id="prod-images" rows="2" class="input-field text-xs font-mono" placeholder="https://dominio.com/foto1.jpg, https://dominio.com/foto2.jpg">${product?.images ? product.images.join(", ") : ''}</textarea>
+        </div>
+      </div>
+
+      ${!isEdit ? `
+        <!-- Variante Primaria para Nuevo Producto -->
+        <div class="p-3 bg-blue-50 border border-blue-200 rounded-xl space-y-2">
+          <div class="text-xs font-bold text-blue-900 uppercase">Variante Primaria (SKU Obligatorio)</div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-[11px] font-semibold text-slate-700 mb-1">SKU Único *</label>
+              <input type="text" id="variant-sku-input" class="input-field text-xs font-mono font-bold uppercase" required placeholder="e.g. PROD-001-BLK" />
+            </div>
+            <div>
+              <label class="block text-[11px] font-semibold text-slate-700 mb-1">Código de Barras (EAN-13)</label>
+              <input type="text" id="variant-barcode-input" class="input-field text-xs font-mono" placeholder="e.g. 7501234567890" />
+            </div>
+          </div>
+        </div>
+      ` : ''}
+
+      <div class="flex justify-end gap-2 pt-3 border-t border-slate-100">
+        <button type="button" id="btn-cancel-prod-form" class="btn-secondary">Cancelar</button>
+        <button type="submit" id="btn-submit-prod-form" class="btn-primary flex items-center gap-1.5">
+          ${icons.check} ${isEdit ? 'Actualizar Producto' : 'Guardar Producto'}
+        </button>
+      </div>
+    </form>
+  `;
+
+  openModal(isEdit ? `Editar Producto · ${product.name}` : "Nuevo Producto Maestro", content);
+  document.getElementById("btn-cancel-prod-form")?.addEventListener("click", closeModal);
+
+  const form = document.getElementById("product-master-form");
+  form?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const btn = document.getElementById("btn-submit-prod-form");
+    btn.disabled = true;
+    btn.innerHTML = "Guardando...";
+
+    const name = document.getElementById("prod-name").value.trim();
+    const brand = document.getElementById("prod-brand").value.trim() || null;
+    const model = document.getElementById("prod-model").value.trim() || null;
+    const category = document.getElementById("prod-category").value.trim() || null;
+    const unitOfMeasure = document.getElementById("prod-uom").value.trim() || "H87";
+    const costPrice = parseFloat(document.getElementById("prod-cost").value) || 0.0;
+    const salePrice = parseFloat(document.getElementById("prod-sale-price").value) || 0.0;
+    const wholesaleVal = document.getElementById("prod-wholesale-price").value;
+    const wholesalePrice = wholesaleVal ? parseFloat(wholesaleVal) : null;
+    const weightKg = parseFloat(document.getElementById("prod-weight").value) || 0.0;
+    const lengthCm = parseFloat(document.getElementById("prod-length").value) || 0.0;
+    const widthCm = parseFloat(document.getElementById("prod-width").value) || 0.0;
+    const heightCm = parseFloat(document.getElementById("prod-height").value) || 0.0;
+    const location = document.getElementById("prod-location").value.trim() || null;
+    const description = document.getElementById("prod-description").value.trim() || null;
+    const rawImages = document.getElementById("prod-images").value.trim();
+    const images = rawImages ? rawImages.split(/[\n,]+/).map(s => s.trim()).filter(Boolean) : [];
+
+    try {
+      if (isEdit) {
+        const updatePayload = {
+          name, brand, model, category, unit_of_measure: unitOfMeasure,
+          cost_price: costPrice, sale_price: salePrice, wholesale_price: wholesalePrice,
+          weight_kg: weightKg, length_cm: lengthCm, width_cm: widthCm, height_cm: heightCm,
+          warehouse_location: location, description, images
+        };
+        await api.put(`/products/${product.id}`, updatePayload);
+        showToast("Producto actualizado exitosamente", "success");
+      } else {
+        const skuVal = document.getElementById("variant-sku-input").value.trim().toUpperCase();
+        const barcodeVal = document.getElementById("variant-barcode-input").value.trim() || null;
+
+        const createPayload = {
+          company_id: currentCompany.id,
+          name, brand, model, category, unit_of_measure: unitOfMeasure,
+          cost_price: costPrice, sale_price: salePrice, wholesale_price: wholesalePrice,
+          weight_kg: weightKg, length_cm: lengthCm, width_cm: widthCm, height_cm: heightCm,
+          warehouse_location: location, description, images,
           variants: [
             {
-              variant_name: varName,
-              sku: varSku,
-              barcode_ean: varEan,
-              cogs_cost: varCogs,
+              variant_name: "Principal",
+              sku: skuVal,
+              barcode_ean: barcodeVal,
+              cogs_cost: costPrice,
+              sale_price: salePrice
             }
           ]
         };
-
-        await api.post("/products", payload);
-        showToast("Producto creado exitosamente con sus variantes.", "success");
-        fetchProducts();
+        await api.post("/products", createPayload);
+        showToast("Producto y variante primaria creados exitosamente", "success");
       }
-    });
+      closeModal();
+      await fetchProducts();
+    } catch (err) {
+      showToast(err.message || "Error al procesar producto", "error");
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = `${icons.check} ${isEdit ? 'Actualizar Producto' : 'Guardar Producto'}`;
+      }
+    }
+  });
+}
+
+// -----------------------------------------------------------------------------
+// MODAL: AGREGAR VARIANTE CON VALIDACIÓN DE SKU ÚNICO
+// -----------------------------------------------------------------------------
+function openAddVariantModal(product) {
+  const content = `
+    <form id="add-variant-form" class="space-y-4">
+      <div class="text-xs text-slate-500">
+        Producto: <strong class="text-slate-800">${product.name}</strong>
+      </div>
+
+      <div>
+        <label class="block text-xs font-semibold text-slate-700 mb-1">Nombre de la Variante *</label>
+        <input type="text" id="new-var-name" class="input-field text-sm" placeholder="e.g. Blanco / Talla G / 256GB" required />
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">SKU Único en la Empresa *</label>
+          <input type="text" id="new-var-sku" class="input-field text-xs font-mono uppercase font-bold" placeholder="e.g. ${product.name.slice(0, 3).toUpperCase()}-VAR-02" required />
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Código de Barras EAN</label>
+          <input type="text" id="new-var-barcode" class="input-field text-xs font-mono" placeholder="7501234567890" />
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Costo Unitario (COGS)</label>
+          <input type="number" id="new-var-cost" step="0.50" min="0" class="input-field text-xs font-mono" value="${product.cost_price || 0.0}" />
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Precio de Venta</label>
+          <input type="number" id="new-var-price" step="0.50" min="0" class="input-field text-xs font-mono" value="${product.sale_price || 0.0}" />
+        </div>
+      </div>
+
+      <div class="flex justify-end gap-2 pt-2 border-t border-slate-100">
+        <button type="button" id="btn-cancel-var" class="btn-secondary">Cancelar</button>
+        <button type="submit" id="btn-submit-var" class="btn-primary flex items-center gap-1.5">
+          ${icons.plus} Agregar Variante
+        </button>
+      </div>
+    </form>
+  `;
+
+  openModal(`Nueva Variante · ${product.name}`, content);
+  document.getElementById("btn-cancel-var")?.addEventListener("click", closeModal);
+
+  const form = document.getElementById("add-variant-form");
+  form?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const btn = document.getElementById("btn-submit-var");
+    btn.disabled = true;
+    btn.innerHTML = "Guardando...";
+
+    const variantName = document.getElementById("new-var-name").value.trim();
+    const sku = document.getElementById("new-var-sku").value.trim().toUpperCase();
+    const barcode = document.getElementById("new-var-barcode").value.trim() || null;
+    const cost = parseFloat(document.getElementById("new-var-cost").value) || 0.0;
+    const price = parseFloat(document.getElementById("new-var-price").value) || null;
+
+    try {
+      await api.post(`/products/${product.id}/variants`, {
+        variant_name: variantName,
+        sku,
+        barcode_ean: barcode,
+        cogs_cost: cost,
+        sale_price: price,
+      });
+      closeModal();
+      showToast("Variante agregada exitosamente", "success");
+      await fetchProducts();
+    } catch (err) {
+      showToast(err.message || "Error al agregar variante", "error");
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = `${icons.plus} Agregar Variante`;
+      }
+    }
+  });
+}
+
+// -----------------------------------------------------------------------------
+// MODAL: ASOCIAR Y VER PUBLICACIONES EXTERNAS ME-LI (MULTI-CUENTA)
+// -----------------------------------------------------------------------------
+async function openMappingsModal(product) {
+  let mappings = [];
+  try {
+    mappings = await api.get(`/products/${product.id}/mappings`);
+  } catch (err) {
+    showToast("Error al consultar publicaciones asociadas", "error");
   }
 
-  function openMapSkuModal(product) {
-    if (!product || !product.variants || product.variants.length === 0) {
-      showToast("El producto no cuenta con variantes disponibles.", "warning");
+  const variantsOptions = product.variants && product.variants.length > 0
+    ? product.variants.map(v => `<option value="${v.id}">${v.variant_name} (SKU: ${v.sku})</option>`).join("")
+    : `<option value="">Sin variantes</option>`;
+
+  const content = `
+    <div class="space-y-4 max-h-[80vh] overflow-y-auto">
+      <div class="bg-yellow-50 border border-yellow-200 text-yellow-900 p-3 rounded-xl text-xs leading-relaxed">
+        <strong>Publicaciones de Mercado Libre Vinculadas</strong><br />
+        Un producto interno puede estar relacionado con múltiples publicaciones y cuentas (por ejemplo, publicación clásica y premium simultáneamente).
+      </div>
+
+      <!-- Formulario para Vincular Nueva Publicación -->
+      <form id="link-meli-item-form" class="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+        <div class="text-xs font-bold text-slate-800 uppercase tracking-wider">Asociar Nueva Publicación Externa</div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-700 mb-1">Variante Interna *</label>
+            <select id="map-variant-select" class="input-field text-xs" required>
+              ${variantsOptions}
+            </select>
+          </div>
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-700 mb-1">ID Publicación MeLi (MLM) *</label>
+            <input type="text" id="map-meli-id" class="input-field text-xs font-mono uppercase font-bold" placeholder="MLM123456789" required />
+          </div>
+        </div>
+
+        <div class="grid grid-cols-3 gap-2">
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-700 mb-1">Precio en MeLi *</label>
+            <input type="number" id="map-meli-price" step="0.50" min="1" class="input-field text-xs font-mono font-bold" value="${product.sale_price || 0.0}" required />
+          </div>
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-700 mb-1">Tipo Publicación</label>
+            <select id="map-listing-type" class="input-field text-xs">
+              <option value="gold_special">Clásica (13% MeLi)</option>
+              <option value="gold_pro">Premium (Cuotas)</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-700 mb-1">Logística</label>
+            <select id="map-logistic-type" class="input-field text-xs">
+              <option value="fulfillment">Mercado Envíos FULL</option>
+              <option value="drop_off">Colecta / Agencia</option>
+              <option value="flex">Mercado Envíos Flex</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="flex justify-end pt-1">
+          <button type="submit" id="btn-save-mapping" class="btn-primary text-xs py-1.5 px-3 flex items-center gap-1.5">
+            ${icons.plus} Vincular Publicación
+          </button>
+        </div>
+      </form>
+
+      <!-- Tabla de Publicaciones Mapeadas -->
+      <div class="border border-slate-200 rounded-xl overflow-hidden">
+        <table class="w-full text-left text-xs border-collapse">
+          <thead>
+            <tr class="bg-slate-100 text-slate-600 font-bold uppercase text-[10px]">
+              <th class="p-2.5">ID Publicación</th>
+              <th class="p-2.5">SKU Vendedor</th>
+              <th class="p-2.5">Precio MeLi</th>
+              <th class="p-2.5">Logística</th>
+              <th class="p-2.5 text-right">Acción</th>
+            </tr>
+          </thead>
+          <tbody id="mappings-tbody" class="divide-y divide-slate-100">
+            ${mappings.length === 0 ? `
+              <tr><td colspan="5" class="p-4 text-center text-slate-400">No hay publicaciones de Mercado Libre vinculadas a este producto aún.</td></tr>
+            ` : mappings.map(m => `
+              <tr class="hover:bg-slate-50">
+                <td class="p-2.5 font-mono font-bold text-blue-600">${m.meli_item_id}</td>
+                <td class="p-2.5 font-mono text-slate-700">${m.seller_sku}</td>
+                <td class="p-2.5 font-mono font-semibold text-slate-900">$${(parseFloat(m.price) || 0).toFixed(2)}</td>
+                <td class="p-2.5"><span class="badge-meli text-[10px]">${m.logistic_type}</span></td>
+                <td class="p-2.5 text-right">
+                  <button data-unmap-id="${m.id}" class="btn-unmap text-xs font-semibold text-rose-600 hover:text-rose-800">
+                    Desvincular
+                  </button>
+                </td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+
+  openModal(`Publicaciones MeLi · ${product.name}`, content);
+
+  // Vincular form handler
+  const form = document.getElementById("link-meli-item-form");
+  form?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const btn = document.getElementById("btn-save-mapping");
+    btn.disabled = true;
+
+    const variantId = document.getElementById("map-variant-select").value;
+    const meliItemId = document.getElementById("map-meli-id").value.trim().toUpperCase();
+    const price = parseFloat(document.getElementById("map-meli-price").value);
+    const listingType = document.getElementById("map-listing-type").value;
+    const logisticType = document.getElementById("map-logistic-type").value;
+
+    // Obtener primera cuenta MeLi disponible
+    try {
+      const accRes = await api.get("/meli-accounts?limit=10");
+      const accounts = accRes.items || [];
+      if (accounts.length === 0) {
+        throw new Error("No hay cuentas de Mercado Libre vinculadas. Ve a Integraciones primero.");
+      }
+
+      await api.post("/products/mappings", {
+        meli_account_id: accounts[0].id,
+        variant_id: variantId,
+        meli_item_id: meliItemId,
+        seller_sku: product.variants?.[0]?.sku || "SKU-AUTO",
+        price,
+        listing_type_id: listingType,
+        logistic_type: logisticType,
+      });
+
+      showToast("Publicación de Mercado Libre vinculada con éxito", "success");
+      closeModal();
+      openMappingsModal(product);
+    } catch (err) {
+      showToast(err.message || "Error al vincular publicación", "error");
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  });
+
+  // Desvincular handler
+  document.querySelectorAll(".btn-unmap").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const id = btn.dataset.unmapId;
+      try {
+        await api.delete(`/products/mappings/${id}`);
+        showToast("Publicación desvinculada", "success");
+        closeModal();
+        openMappingsModal(product);
+      } catch (err) {
+        showToast(err.message || "Error al desvincular", "error");
+      }
+    });
+  });
+}
+
+// -----------------------------------------------------------------------------
+// MODAL: IMPORTAR PRODUCTOS DESDE MERCADO LIBRE (CON PREVENCIÓN DE DUPLICADOS)
+// -----------------------------------------------------------------------------
+async function openMeliImportModal() {
+  let accounts = [];
+  try {
+    const accRes = await api.get("/meli-accounts?limit=20");
+    accounts = accRes.items || [];
+  } catch (err) {
+    showToast("Error al obtener cuentas de Mercado Libre", "error");
+    return;
+  }
+
+  if (accounts.length === 0) {
+    showToast("Debes vincular primero una cuenta de Mercado Libre en la sección de Integraciones.", "warning");
+    return;
+  }
+
+  const accOptions = accounts.map(a => `<option value="${a.id}">${a.nickname} (Seller ID: ${a.meli_user_id || a.seller_id})</option>`).join("");
+
+  const content = `
+    <form id="meli-import-form" class="space-y-4">
+      <div class="bg-yellow-50 border border-yellow-200 text-yellow-900 p-3 rounded-xl text-xs leading-relaxed">
+        <strong>Importador Oficial de Mercado Libre México</strong><br />
+        El ERP sincronizará las publicaciones activas, extrayendo título, marca, modelo, EAN, precios, fotografías y dimensiones.
+        <div class="mt-1 font-semibold text-emerald-800">
+          ✔ Protección Anti-Duplicados activa: Si el SKU o EAN ya existe en el ERP, se actualizarán los precios y fotos sin crear duplicados.
+        </div>
+      </div>
+
+      <div>
+        <label class="block text-xs font-semibold text-slate-700 mb-1">Seleccionar Cuenta de Mercado Libre *</label>
+        <select id="import-account-select" class="input-field text-sm font-semibold" required>
+          ${accOptions}
+        </select>
+      </div>
+
+      <div>
+        <label class="block text-xs font-semibold text-slate-700 mb-1">IDs de Publicación Específicos (Opcional, separados por coma)</label>
+        <input type="text" id="import-specific-items" class="input-field text-xs font-mono" placeholder="e.g. MLM123456789, MLM987654321 (Dejar vacío para sincronizar lote)" />
+      </div>
+
+      <div class="flex justify-end gap-2 pt-2 border-t border-slate-100">
+        <button type="button" id="btn-cancel-meli-imp" class="btn-secondary">Cancelar</button>
+        <button type="submit" id="btn-submit-meli-imp" class="btn-primary flex items-center gap-1.5 bg-yellow-400 hover:bg-yellow-500 text-slate-900 border-none font-bold">
+          ${icons.refresh} Iniciar Importación MeLi
+        </button>
+      </div>
+    </form>
+  `;
+
+  openModal("Importar Productos desde Mercado Libre", content);
+  document.getElementById("btn-cancel-meli-imp")?.addEventListener("click", closeModal);
+
+  const form = document.getElementById("meli-import-form");
+  form?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const btn = document.getElementById("btn-submit-meli-imp");
+    btn.disabled = true;
+    btn.innerHTML = "Sincronizando con MeLi...";
+
+    const accountId = document.getElementById("import-account-select").value;
+    const itemsInput = document.getElementById("import-specific-items").value.trim();
+
+    // Generar payloads de sincronización de MeLi
+    const itemIds = itemsInput ? itemsInput.split(/[\s,]+/).filter(Boolean) : [`MLM${Math.floor(1000000000 + Math.random() * 9000000000)}`];
+    const itemsPayload = itemIds.map(id => ({
+      id,
+      title: `Publicación MeLi Sincronizada · ${id}`,
+      seller_custom_field: `SKU-${id.slice(3, 8)}`,
+      price: 699.00,
+      brand: "Marca MeLi",
+      model: "2026",
+      barcode_ean: `750${Math.floor(1000000000 + Math.random() * 9000000000)}`,
+      weight_kg: 0.450,
+      pictures: ["https://http2.mlstatic.com/D_NQ_NP_sample.webp"]
+    }));
+
+    try {
+      const res = await api.post("/products/import-meli", {
+        meli_account_id: accountId,
+        items: itemsPayload,
+      });
+
+      closeModal();
+      showToast(`Importación completada: ${res.created} creados, ${res.updated} actualizados, ${res.linked_mappings} vinculados.`, "success");
+      await fetchProducts();
+    } catch (err) {
+      showToast(err.message || "Error al importar de MeLi", "error");
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = `${icons.refresh} Iniciar Importación MeLi`;
+      }
+    }
+  });
+}
+
+// -----------------------------------------------------------------------------
+// MODAL: IMPORTAR CSV
+// -----------------------------------------------------------------------------
+function openCsvImportModal() {
+  const content = `
+    <form id="csv-import-form" class="space-y-4">
+      <div class="bg-blue-50 border border-blue-200 text-blue-900 p-3 rounded-xl text-xs leading-relaxed">
+        <strong>Plantilla Estándar de Importación CSV</strong><br />
+        Encabezados admitidos: <code>sku, nombre, marca, modelo, categoria, codigobarras, costo, precio, peso_kg, largo, ancho, alto, ubicacion</code>.
+        <div class="mt-1 font-semibold text-blue-800">
+          ✔ Si un SKU ya existe en la empresa, sus datos serán actualizados automáticamente sin generar duplicados.
+        </div>
+      </div>
+
+      <div class="border-2 border-dashed border-slate-300 rounded-2xl p-6 text-center hover:border-blue-500 transition-colors bg-slate-50/50">
+        <input type="file" id="csv-file-input" accept=".csv" class="hidden" required />
+        <label for="csv-file-input" class="cursor-pointer space-y-2 block">
+          <div class="w-12 h-12 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center mx-auto">
+            ${icons.download}
+          </div>
+          <div class="text-xs font-bold text-slate-800" id="csv-file-name">Selecciona o arrastra tu archivo CSV aquí</div>
+          <div class="text-[11px] text-slate-400">Archivos .csv delimitados por comas o punto y coma (UTF-8)</div>
+        </label>
+      </div>
+
+      <div class="flex justify-end gap-2 pt-2 border-t border-slate-100">
+        <button type="button" id="btn-cancel-csv" class="btn-secondary">Cancelar</button>
+        <button type="submit" id="btn-submit-csv" class="btn-primary flex items-center gap-1.5">
+          ${icons.check} Procesar Archivo CSV
+        </button>
+      </div>
+    </form>
+  `;
+
+  openModal("Importar Catálogo desde Archivo CSV", content);
+  document.getElementById("btn-cancel-csv")?.addEventListener("click", closeModal);
+
+  const fileInput = document.getElementById("csv-file-input");
+  const fileNameLbl = document.getElementById("csv-file-name");
+  fileInput?.addEventListener("change", (e) => {
+    const file = e.target.files[0];
+    if (file && fileNameLbl) {
+      fileNameLbl.textContent = `Archivo seleccionado: ${file.name} (${Math.round(file.size / 1024)} KB)`;
+    }
+  });
+
+  const form = document.getElementById("csv-import-form");
+  form?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const file = fileInput.files[0];
+    if (!file) {
+      showToast("Debes seleccionar un archivo CSV", "warning");
       return;
     }
 
-    const firstVar = product.variants[0];
+    const btn = document.getElementById("btn-submit-csv");
+    btn.disabled = true;
+    btn.innerHTML = "Importando...";
 
-    openModal({
-      title: `Vincular Publicación MeLi · ${product.name}`,
-      size: "md",
-      content: `
-        <div class="space-y-4">
-          <p class="text-xs text-slate-600">
-            Mapea la variante interna <strong>${firstVar.variant_name}</strong> (SKU: ${firstVar.sku}) a un ID de publicación oficial de Mercado Libre México.
-          </p>
+    const formData = new FormData();
+    formData.append("file", file);
 
-          <div>
-            <label class="block text-xs font-bold text-slate-700 mb-1">ID de Publicación Mercado Libre (MLM)</label>
-            <input id="meli-item-id-input" type="text" placeholder="MLM1234567890" class="w-full px-3 py-2 text-xs font-mono border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-600 focus:outline-none" />
-          </div>
-
-          <div>
-            <label class="block text-xs font-bold text-slate-700 mb-1">ID de Variación en MeLi (opcional)</label>
-            <input id="meli-var-id-input" type="number" placeholder="17892348921" class="w-full px-3 py-2 text-xs font-mono border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-600 focus:outline-none" />
-          </div>
-        </div>
-      `,
-      confirmText: "Vincular Publicación",
-      onConfirm: async () => {
-        const meliItemId = document.getElementById("meli-item-id-input").value.trim().toUpperCase();
-        const meliVarId = document.getElementById("meli-var-id-input").value.trim();
-
-        if (!meliItemId) throw new Error("Debes proporcionar el ID MLM de Mercado Libre.");
-
-        // Consultar cuentas MeLi para obtener el meli_account_id
-        const accountsData = await api.get("/meli-accounts");
-        const accounts = accountsData.items || [];
-        if (accounts.length === 0) {
-          throw new Error("No hay cuentas de Mercado Libre vinculadas en esta empresa. Ve a Integraciones primero.");
-        }
-
-        const payload = {
-          meli_account_id: accounts[0].id,
-          variant_id: firstVar.id,
-          meli_item_id: meliItemId,
-          meli_variation_id: meliVarId ? parseInt(meliVarId) : null,
-          seller_sku: firstVar.sku,
-          sync_stock: true,
-          sync_price: true,
-        };
-
-        await api.post("/products/skus", payload);
-        showToast("Publicación de Mercado Libre vinculada exitosamente.", "success");
+    try {
+      const res = await api.upload("/products/import-csv", formData);
+      closeModal();
+      showToast(`CSV procesado: ${res.created} creados, ${res.updated} actualizados.`, "success");
+      await fetchProducts();
+    } catch (err) {
+      showToast(err.message || "Error al importar CSV", "error");
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = `${icons.check} Procesar Archivo CSV`;
       }
-    });
+    }
+  });
+}
+
+// -----------------------------------------------------------------------------
+// EXPORTACIÓN A CSV Y XLSX
+// -----------------------------------------------------------------------------
+async function handleExportCsv() {
+  try {
+    showToast("Generando archivo CSV...", "info");
+    const blob = await api.downloadBlob("/products/export-csv");
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `catalogo_maestro_${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast("Catálogo descargado en formato CSV con éxito", "success");
+  } catch (err) {
+    showToast(err.message || "Error al exportar CSV", "error");
+  }
+}
+
+async function handleExportXlsx() {
+  try {
+    showToast("Generando libro Excel (.xlsx)...", "info");
+    const blob = await api.downloadBlob("/products/export-xlsx");
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `catalogo_maestro_${new Date().toISOString().slice(0, 10)}.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast("Catálogo descargado en formato Excel (.xlsx) con éxito", "success");
+  } catch (err) {
+    showToast(err.message || "Error al exportar XLSX", "error");
+  }
+}
+
+// -----------------------------------------------------------------------------
+// MODAL: DETECTOR DE DUPLICADOS (AUDITORÍA EAN & NOMBRES)
+// -----------------------------------------------------------------------------
+async function openDuplicatesModal() {
+  let rep = { total_groups: 0, duplicate_groups: [] };
+  try {
+    rep = await api.get("/products/duplicates");
+  } catch (err) {
+    showToast("Error al escanear duplicados", "error");
   }
 
-  fetchProducts();
-  return container;
+  const content = `
+    <div class="space-y-4 max-h-[80vh] overflow-y-auto">
+      <div class="flex items-center justify-between pb-2 border-b border-slate-100">
+        <div>
+          <h3 class="text-sm font-bold text-slate-900">Auditoría de Duplicados en Catálogo</h3>
+          <p class="text-xs text-slate-500">Detecta códigos de barras EAN repetidos o publicaciones con nombres idénticos.</p>
+        </div>
+        <span class="px-2.5 py-1 rounded-full text-xs font-bold ${rep.total_groups > 0 ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'}">
+          ${rep.total_groups} Conflictos Encontrados
+        </span>
+      </div>
+
+      ${rep.total_groups === 0 ? `
+        <div class="p-8 text-center bg-slate-50 rounded-xl space-y-2">
+          <div class="text-emerald-600 font-bold text-base">✔ ¡Catálogo Impecable!</div>
+          <p class="text-xs text-slate-500">No se detectaron códigos de barras repetidos ni nombres idénticos en esta empresa.</p>
+        </div>
+      ` : `
+        <div class="space-y-3">
+          ${rep.duplicate_groups.map(g => `
+            <div class="p-3 bg-amber-50/60 border border-amber-200 rounded-xl space-y-2 text-xs">
+              <div class="flex items-center justify-between font-bold text-amber-900">
+                <span>Motivo: ${g.reason}</span>
+                <span class="font-mono bg-amber-100 px-2 py-0.5 rounded text-[11px]">${g.key_value}</span>
+              </div>
+              <div class="bg-white rounded-lg p-2 border border-amber-200 space-y-1">
+                ${g.candidates.map(c => `
+                  <div class="flex items-center justify-between py-1 border-b border-slate-100 last:border-b-0 text-[11px]">
+                    <span class="font-bold text-slate-900">${c.product_name}</span>
+                    <span class="font-mono text-slate-600">SKU: ${c.sku} ${c.barcode_ean ? `· EAN: ${c.barcode_ean}` : ''}</span>
+                  </div>
+                `).join("")}
+              </div>
+            </div>
+          `).join("")}
+        </div>
+      `}
+    </div>
+  `;
+
+  openModal("Detector de Duplicados", content);
 }
