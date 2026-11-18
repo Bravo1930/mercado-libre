@@ -1,0 +1,47 @@
+# ==============================================================================
+# ORQUESTACIÓN DESARROLLO LOCAL (PC)
+# Uso: docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+# ==============================================================================
+
+services:
+  caddy:
+    profiles: ["with-caddy"] # Opcional en desarrollo local
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: meli_erp_api_dev
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./src:/app/src:ro
+      - ./tests:/app/tests:ro
+      - ./storage:/app/storage
+      - ./logs:/app/logs
+    environment:
+      - ENVIRONMENT=development
+      - LOG_LEVEL=DEBUG
+      - LOG_FORMAT=console
+    command: ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: meli_erp_worker_dev
+    volumes:
+      - ./src:/app/src:ro
+      - ./storage:/app/storage
+      - ./logs:/app/logs
+    environment:
+      - ENVIRONMENT=development
+      - LOG_LEVEL=DEBUG
+
+  postgres:
+    ports:
+      - "5432:5432"
+
+  redis:
+    ports:
+      - "6379:6379"

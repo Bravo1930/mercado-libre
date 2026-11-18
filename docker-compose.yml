@@ -1,0 +1,164 @@
+# ==============================================================================
+# ORQUESTACIÓN PRINCIPAL PRODUCCIÓN / SERVIDOR 24/7 - ERP MERCADO LIBRE MÉXICO
+# ==============================================================================
+
+networks:
+  meli_erp_network:
+    name: meli_erp_network
+    driver: bridge
+
+volumes:
+  postgres_data:
+    name: meli_erp_postgres_data
+  redis_data:
+    name: meli_erp_redis_data
+  storage_data:
+    name: meli_erp_storage_data
+  caddy_data:
+    name: meli_erp_caddy_data
+  caddy_config:
+    name: meli_erp_caddy_config
+
+services:
+  # ----------------------------------------------------------------------------
+  # 1. REVERSE PROXY CON HTTPS AUTOMÁTICO (CADDY)
+  # ----------------------------------------------------------------------------
+  caddy:
+    image: caddy:2.8-alpine
+    container_name: meli_erp_caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      - DOMAIN_NAME=${DOMAIN_NAME:-localhost}
+      - ACME_EMAIL=${ACME_EMAIL:-admin@localhost}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - meli_erp_network
+    depends_on:
+      api:
+        condition: service_healthy
+
+  # ----------------------------------------------------------------------------
+  # 2. API PRINCIPAL FASTAPI (CORE ERP)
+  # ----------------------------------------------------------------------------
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: meli-erp-api:latest
+    container_name: meli_erp_api
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - POSTGRES_HOST=postgres
+      - REDIS_HOST=redis
+    volumes:
+      - storage_data:/app/storage
+      - ./logs:/app/logs
+    networks:
+      - meli_erp_network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # ----------------------------------------------------------------------------
+  # 3. WORKER ASÍNCRONO (WEBHOOKS, SINCRONIZACIÓN Y REPORTES)
+  # ----------------------------------------------------------------------------
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: meli-erp-worker:latest
+    container_name: meli_erp_worker
+    restart: unless-stopped
+    command: ["python", "-m", "src.workers.tasks"]
+    env_file:
+      - .env
+    environment:
+      - POSTGRES_HOST=postgres
+      - REDIS_HOST=redis
+    volumes:
+      - storage_data:/app/storage
+      - ./logs:/app/logs
+    networks:
+      - meli_erp_network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # ----------------------------------------------------------------------------
+  # 4. BASE DE DATOS CENTRAL POSTGRESQL 16
+  # ----------------------------------------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    container_name: meli_erp_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-meli_erp_db}
+      POSTGRES_USER: ${POSTGRES_USER:-erp_admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dev_postgres_password_2026}
+      PGDATA: /var/lib/postgresql/data/pgdata
+      TZ: "America/Mexico_City"
+    command: >
+      postgres
+      -c shared_buffers=256MB
+      -c work_mem=16MB
+      -c effective_cache_size=768MB
+      -c maintenance_work_mem=64MB
+      -c min_wal_size=100MB
+      -c max_wal_size=2GB
+      -c checkpoint_completion_target=0.9
+      -c wal_buffers=16MB
+      -c default_statistics_target=100
+      -c random_page_cost=1.1
+      -c effective_io_concurrency=200
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backups:/backups
+    networks:
+      - meli_erp_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-erp_admin} -d ${POSTGRES_DB:-meli_erp_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+  # ----------------------------------------------------------------------------
+  # 5. REDIS 7 (CACHE, LOCKS CONCURRENTES Y COLA DE WEBHOOKS)
+  # ----------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: meli_erp_redis
+    restart: unless-stopped
+    command: >
+      redis-server
+      --appendonly yes
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    networks:
+      - meli_erp_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s

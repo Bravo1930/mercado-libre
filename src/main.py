@@ -1,0 +1,118 @@
+"""Punto de entrada principal de la aplicación FastAPI del ERP."""
+
+import time
+import uuid
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI, Request, Response
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+
+from src.api.v1 import api_v1_router
+from src.core.config import get_settings
+from src.core.database import check_database_connection, close_database_connections
+from src.core.logging import get_logger, setup_logging
+from src.core.redis import check_redis_connection, close_redis_connection
+
+# Inicializar sistema de logs
+setup_logging()
+logger = get_logger("main")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Ciclo de vida de la aplicación: inicialización y apagado controlado."""
+    settings = get_settings()
+    logger.info(
+        f"Iniciando ERP Mercado Libre México v0.1.0 "
+        f"[Entorno={settings.ENVIRONMENT}, Nodo={settings.NODE_NAME}]"
+    )
+
+    # Verificación no bloqueante de infraestructura en el arranque
+    db_ok, db_msg = await check_database_connection()
+    logger.info(f"Diagnóstico PostgreSQL al arranque: {db_msg}")
+
+    redis_ok, redis_msg = await check_redis_connection()
+    logger.info(f"Diagnóstico Redis al arranque: {redis_msg}")
+
+    yield
+
+    logger.info("Apagando servicios del ERP y liberando recursos...")
+    await close_database_connections()
+    await close_redis_connection()
+    logger.info("ERP detenido correctamente.")
+
+
+def create_app() -> FastAPI:
+    """Fábrica de la aplicación FastAPI."""
+    settings = get_settings()
+
+    app = FastAPI(
+        title="ERP Inteligente Mercado Libre México",
+        description=(
+            "Plataforma ERP y SaaS para la administración integral de inventarios, "
+            "ventas, publicaciones, guías de envío, compras y rentabilidad neta en Mercado Libre México."
+        ),
+        version="0.1.0",
+        lifespan=lifespan,
+        docs_url="/docs" if settings.ENVIRONMENT != "production" else None,
+        redoc_url="/redoc" if settings.ENVIRONMENT != "production" else None,
+    )
+
+    # Middleware CORS
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"] if settings.ENVIRONMENT == "development" else [f"https://{settings.DOMAIN_NAME}"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+    # Middleware de Trazabilidad (Request ID y Tiempo de Respuesta)
+    @app.middleware("http")
+    async def request_tracing_middleware(request: Request, call_next):
+        request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
+        start_time = time.time()
+
+        try:
+            response: Response = await call_next(request)
+            process_time = round((time.time() - start_time) * 1000, 2)
+            response.headers["X-Request-ID"] = request_id
+            response.headers["X-Process-Time-Ms"] = str(process_time)
+
+            if request.url.path not in ["/api/v1/health"]:
+                logger.info(
+                    f"{request.method} {request.url.path} - "
+                    f"Status={response.status_code} - Latency={process_time}ms [ReqID={request_id}]"
+                )
+            return response
+        except Exception as exc:
+            process_time = round((time.time() - start_time) * 1000, 2)
+            logger.error(f"Error no controlado en {request.method} {request.url.path}: {exc} [ReqID={request_id}]")
+            return JSONResponse(
+                status_code=500,
+                content={
+                    "error": "Error interno del servidor",
+                    "request_id": request_id,
+                    "detail": str(exc) if settings.ENVIRONMENT != "production" else "Ocurrió un error inesperado.",
+                },
+                headers={"X-Request-ID": request_id},
+            )
+
+    # Inclusión de Rutas
+    app.include_router(api_v1_router)
+
+    @app.get("/", tags=["Root"])
+    async def root():
+        return {
+            "name": "ERP Mercado Libre México API",
+            "version": "0.1.0",
+            "status": "online",
+            "docs": "/docs" if settings.ENVIRONMENT != "production" else "disabled_in_production",
+            "health": "/api/v1/health",
+        }
+
+    return app
+
+
+app = create_app()

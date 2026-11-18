@@ -1,0 +1,35 @@
+# ==============================================================================
+# DOCKERFILE DESARROLLO - ERP MERCADO LIBRE MÉXICO
+# Configurado para recarga en caliente (Hot Reload) y herramientas de depuración
+# ==============================================================================
+FROM python:3.13-slim-bookworm
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    TZ="America/Mexico_City"
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    libpq-dev \
+    curl \
+    git \
+    tzdata \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
+
+WORKDIR /app
+
+# Copiar configuración de dependencias
+COPY pyproject.toml README.md ./
+
+# Instalar dependencias normales y de desarrollo
+RUN uv pip install --system --no-cache -e ".[dev]"
+
+# Exponer puerto de desarrollo
+EXPOSE 8000
+
+# Ejecución con Uvicorn en modo reload
+CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]

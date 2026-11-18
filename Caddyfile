@@ -1,0 +1,37 @@
+# ==============================================================================
+# CADDYFILE - REVERSE PROXY CON HTTPS AUTOMÁTICO
+# ==============================================================================
+
+{$DOMAIN_NAME:localhost} {
+    # Certificado TLS / SSL automático con Let's Encrypt
+    tls {$ACME_EMAIL:admin@localhost}
+
+    # Encabezados de seguridad reforzados (Security Hardening)
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        Permissions-Policy "camera=(), microphone=(), geolocation=()"
+        -Server
+    }
+
+    # Proxy inverso hacia el API FastAPI
+    reverse_proxy api:8000 {
+        header_up X-Forwarded-Proto {scheme}
+        header_up X-Real-IP {remote_host}
+        header_up Host {upstream_hostport}
+        
+        # Timeouts generosos para exportaciones pesadas de Excel / sincronizaciones
+        transport http {
+            read_timeout 120s
+            write_timeout 120s
+        }
+    }
+
+    # Registro de accesos en formato JSON
+    log {
+        output stdout
+        format json
+    }
+}
