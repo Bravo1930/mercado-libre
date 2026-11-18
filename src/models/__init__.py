@@ -11,6 +11,7 @@ from src.models.promotion import Promotion, PromotionItem
 from src.models.setting import CompanySetting
 from src.models.shipment import Shipment
 from src.models.supplier import PurchaseOrder, PurchaseOrderItem, Supplier
+from src.models.sync import SyncEvent, SyncReconciliationLog
 from src.models.tenant import Company, Tenant
 from src.models.user import CompanyUser, PasswordResetToken, User, UserSession
 from src.models.warehouse import (
@@ -55,4 +56,6 @@ __all__ = [
     "PurchaseOrderItem",
     "CompanySetting",
     "AuditLog",
+    "SyncEvent",
+    "SyncReconciliationLog",
 ]

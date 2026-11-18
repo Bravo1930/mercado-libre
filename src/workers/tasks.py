@@ -5,16 +5,22 @@ import json
 import signal
 import sys
 from typing import Any
+import uuid
+
+from sqlalchemy import select
 
 from src.core.config import get_settings
-from src.core.database import close_database_connections
+from src.core.database import close_database_connections, get_session_factory
 from src.core.logging import get_logger, setup_logging
 from src.core.redis import close_redis_connection, get_redis_client
+from src.models.sync import SyncEvent
+from src.services.sync_service import SyncService
 
 setup_logging()
 logger = get_logger("worker")
 
 _SHUTDOWN_SIGNAL = False
+sync_service = SyncService()
 
 
 def signal_handler(sig, frame):
@@ -27,28 +33,57 @@ def signal_handler(sig, frame):
 async def process_meli_webhook_task(data: dict[str, Any]) -> None:
     """
     Procesa un evento de webhook de Mercado Libre México de forma asíncrona.
-    - topic: orders_v2 -> consulta la orden en MeLi, recalcula rentabilidad, descuenta inventario.
-    - topic: items -> actualiza precio, estado de publicación y variaciones.
-    - topic: shipments -> verifica estado de entrega y genera guías PDF/ZPL2 si está listo.
+    Utiliza SyncService para garantizar idempotencia, control de duplicados,
+    reserva o liberación de inventario y actualización de estados.
     """
+    event_id_str = data.get("event_id")
     topic = data.get("topic")
-    payload = data.get("payload", {})
-    resource = payload.get("resource")
-    user_id = payload.get("user_id")
+    payload = data.get("payload") or data
 
-    logger.info(f"[WORKER] Procesando evento MeLi: topic='{topic}', resource='{resource}', user_id={user_id}")
+    logger.info(f"[WORKER] Procesando evento MeLi: topic='{topic}', event_id={event_id_str}")
 
-    # Simulación de procesamiento de eventos
-    if topic == "orders_v2":
-        logger.info(f"[WORKER] Orden detectada: {resource}. Programando cálculo de comisiones e IVA/ISR...")
-    elif topic == "items":
-        logger.info(f"[WORKER] Publicación modificada: {resource}. Sincronizando stock maestro...")
-    elif topic == "shipments":
-        logger.info(f"[WORKER] Envío actualizado: {resource}. Verificando etiqueta de despacho...")
-    else:
-        logger.info(f"[WORKER] Tópico general '{topic}' procesado exitosamente.")
+    factory = get_session_factory()
+    async with factory() as session:
+        try:
+            if event_id_str:
+                event_uuid = uuid.UUID(event_id_str)
+                success = await sync_service.process_sync_event(session, event_uuid)
+                await session.commit()
+                logger.info(f"[WORKER] Evento {event_id_str} procesado con éxito={success}")
+            else:
+                # Si llegó directamente sin registrar previamente
+                event = await sync_service.register_webhook_event(session, payload)
+                if event.status == "pending":
+                    await sync_service.process_sync_event(session, event.id)
+                await session.commit()
+                logger.info(f"[WORKER] Evento registrado y procesado: {event.id}")
+        except Exception as exc:
+            await session.rollback()
+            logger.error(f"[WORKER] Error procesando evento en base de datos: {exc}", exc_info=True)
 
-    await asyncio.sleep(0.05)
+
+async def recover_pending_events_task() -> None:
+    """
+    Tarea de recuperación de eventos: rescata eventos en estado 'pending'
+    que no hayan sido tomados por caídas temporales de Redis o del worker.
+    """
+    factory = get_session_factory()
+    async with factory() as session:
+        try:
+            stmt = (
+                select(SyncEvent.id)
+                .where(SyncEvent.status == "pending", SyncEvent.retry_count < SyncEvent.max_retries)
+                .order_by(SyncEvent.created_at.asc())
+                .limit(20)
+            )
+            pending_ids = (await session.execute(stmt)).scalars().all()
+            for event_id in pending_ids:
+                logger.info(f"[WORKER RECOVERY] Recuperando evento pendiente: {event_id}")
+                await sync_service.process_sync_event(session, event_id)
+                await session.commit()
+        except Exception as exc:
+            await session.rollback()
+            logger.warning(f"[WORKER RECOVERY] Error en ciclo de recuperación: {exc}")
 
 
 async def worker_loop() -> None:
@@ -57,9 +92,11 @@ async def worker_loop() -> None:
     logger.info(f"Worker de segundo plano iniciado en modo={settings.ENVIRONMENT}. Escuchando cola Redis...")
 
     client = get_redis_client()
+    loop_count = 0
 
     while not _SHUTDOWN_SIGNAL:
         try:
+            loop_count += 1
             # BLPOP espera hasta 2 segundos por un nuevo mensaje sin sobrecargar la CPU
             result = await client.blpop("meli_webhooks_queue", timeout=2)
             if result:
@@ -69,6 +106,11 @@ async def worker_loop() -> None:
                     await process_meli_webhook_task(event_data)
                 except json.JSONDecodeError:
                     logger.error(f"[WORKER] Mensaje inválido en cola: {raw_message}")
+
+            # Cada ~30 iteraciones (aprox 1 minuto), ejecutar barrido de recuperación
+            if loop_count % 30 == 0:
+                await recover_pending_events_task()
+
         except Exception as exc:
             if not _SHUTDOWN_SIGNAL:
                 logger.warning(f"[WORKER] Esperando reconexión con Redis: {exc}")
