@@ -686,6 +686,10 @@ class ProfitabilityService:
         stmt = (
             select(ProfitabilityAlert)
             .where(ProfitabilityAlert.company_id == company_id)
+            .options(
+                selectinload(ProfitabilityAlert.product),
+                selectinload(ProfitabilityAlert.variant),
+            )
             .order_by(ProfitabilityAlert.severity.desc(), ProfitabilityAlert.last_evaluated_at.desc())
         )
         if status_filter:

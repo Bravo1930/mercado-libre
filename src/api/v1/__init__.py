@@ -2,6 +2,7 @@
 
 from fastapi import APIRouter
 
+from src.api.v1.ai import router as ai_router
 from src.api.v1.audit import router as audit_router
 from src.api.v1.auth import router as auth_router
 from src.api.v1.commercial import router as commercial_router
@@ -28,6 +29,7 @@ api_v1_router = APIRouter(prefix="/api/v1")
 # Registro de routers modulares
 api_v1_router.include_router(health_router)
 api_v1_router.include_router(dashboard_router)
+api_v1_router.include_router(ai_router)
 api_v1_router.include_router(auth_router)
 api_v1_router.include_router(companies_router)
 api_v1_router.include_router(users_router)

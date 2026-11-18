@@ -202,6 +202,9 @@ class CommercialService:
             viability_alert=" | ".join(alert_msgs) if alert_msgs else None,
         )
 
+    # Alias compatible
+    simulate_promotion_impact = simulate_promotion_profitability
+
     # ---------------------------------------------------------------------------
     # MODIFICACIÓN Y RESTAURACIÓN DE PRECIOS CON AUDITORÍA OFICIAL
     # ---------------------------------------------------------------------------
