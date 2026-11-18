@@ -6,6 +6,7 @@ from src.api.v1.audit import router as audit_router
 from src.api.v1.auth import router as auth_router
 from src.api.v1.commercial import router as commercial_router
 from src.api.v1.companies import router as companies_router
+from src.api.v1.dashboard import router as dashboard_router
 from src.api.v1.finances import router as finances_router
 from src.api.v1.health import router as health_router
 from src.api.v1.inventory import router as inventory_router
@@ -26,6 +27,7 @@ api_v1_router = APIRouter(prefix="/api/v1")
 
 # Registro de routers modulares
 api_v1_router.include_router(health_router)
+api_v1_router.include_router(dashboard_router)
 api_v1_router.include_router(auth_router)
 api_v1_router.include_router(companies_router)
 api_v1_router.include_router(users_router)
