@@ -4,7 +4,7 @@ from src.models.audit import AuditLog
 from src.models.base import Base
 from src.models.cost import CostStructure, ProfitabilityAudit
 from src.models.meli_account import MeliAccount
-from src.models.order import Order, OrderItem
+from src.models.order import Order, OrderClaim, OrderItem, OrderTimeline
 from src.models.payment import Payment
 from src.models.product import Product, ProductSKU, ProductVariant
 from src.models.promotion import Promotion, PromotionItem
@@ -45,6 +45,8 @@ __all__ = [
     "PhysicalCountItem",
     "Order",
     "OrderItem",
+    "OrderTimeline",
+    "OrderClaim",
     "Payment",
     "Shipment",
     "Promotion",

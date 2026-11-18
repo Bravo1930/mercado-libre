@@ -20,6 +20,7 @@ from src.models.shipment import Shipment
 from src.models.sync import SyncEvent, SyncReconciliationLog
 from src.models.warehouse import Inventory, Warehouse
 from src.services.inventory_service import InventoryService
+from src.services.order_service import OrderService
 
 logger = get_logger("sync_service")
 
@@ -37,6 +38,7 @@ class SyncService:
 
     def __init__(self):
         self.inventory_service = InventoryService()
+        self.order_service = OrderService()
 
     async def register_webhook_event(
         self, session: AsyncSession, payload: dict[str, Any]
@@ -228,7 +230,7 @@ class SyncService:
         """
         Procesa tópico 'orders_v2':
         - Descarga orden completa de MeLi.
-        - Persiste Order y OrderItem.
+        - Persiste Order, OrderItem, ProfitabilityAudit y OrderTimeline vía OrderService.
         - Si está pagada/confirmada: reserva stock en inventario local sin duplicar.
         - Si está cancelada: libera reserva.
         """
@@ -239,131 +241,13 @@ class SyncService:
             raise AppException(f"Identificador de orden inválido: {order_id_str}", 400)
 
         order_data = await connector.orders.get_order(order_id_int)
-        order_status = order_data.get("status", "pending")
-        total_amount = float(order_data.get("total_amount", 0.0))
-        paid_amount = float(order_data.get("paid_amount", 0.0))
-        currency_id = order_data.get("currency_id", "MXN")
-        date_created_raw = order_data.get("date_created")
-
-        date_created = datetime.now(timezone.utc)
-        if date_created_raw:
-            try:
-                date_created = datetime.fromisoformat(date_created_raw.replace("Z", "+00:00"))
-            except Exception:
-                pass
-
-        buyer = order_data.get("buyer", {})
-        buyer_id = buyer.get("id")
-        buyer_nickname = buyer.get("nickname")
-
-        # Buscar si ya existe la orden en BD (Idempotencia)
-        stmt_order = select(Order).where(Order.meli_order_id == order_id_int).options(selectinload(Order.items))
-        order_obj = (await session.execute(stmt_order)).scalar_one_or_none()
-
-        is_new = False
-        if not order_obj:
-            is_new = True
-            order_obj = Order(
-                meli_account_id=account.id,
-                meli_order_id=order_id_int,
-                status=order_status,
-                buyer_id=buyer_id,
-                buyer_nickname=buyer_nickname,
-                total_amount=total_amount,
-                paid_amount=paid_amount,
-                currency_id=currency_id,
-                date_created_meli=date_created,
-            )
-            session.add(order_obj)
-            await session.flush()
-        else:
-            order_obj.status = order_status
-            order_obj.paid_amount = paid_amount
-
-        # Guardar partidas (OrderItems)
-        order_items_data = order_data.get("order_items", [])
-        if is_new:
-            for item in order_items_data:
-                it_obj = item.get("item", {})
-                meli_item_id = it_obj.get("id", "")
-                variation_id = str(it_obj.get("variation_id")) if it_obj.get("variation_id") else None
-                seller_sku = it_obj.get("seller_sku") or it_obj.get("seller_custom_field")
-                title = it_obj.get("title", "Producto MeLi")
-                quantity = int(item.get("quantity", 1))
-                unit_price = float(item.get("unit_price", 0.0))
-                sale_fee = float(item.get("sale_fee", 0.0))
-
-                order_item = OrderItem(
-                    order_id=order_obj.id,
-                    meli_item_id=meli_item_id,
-                    meli_variation_id=variation_id,
-                    seller_sku=seller_sku,
-                    title=title,
-                    quantity=quantity,
-                    unit_price=unit_price,
-                    sale_fee=sale_fee,
-                )
-                session.add(order_item)
-            await session.flush()
-
-        # Conciliar Inventario Local (Aislamiento de Mercado Envíos Full)
-        # Solo reservar o descontar en almacenes locales si la publicación no es MeLi Full
-        shipping_data = order_data.get("shipping", {})
-        logistic_type = shipping_data.get("logistic_type")
-        is_full_shipment = logistic_type == "fulfillment"
-
-        if not is_full_shipment and account.company_id:
-            # Encontrar almacén local predeterminado de la empresa
-            stmt_wh = select(Warehouse).where(
-                Warehouse.company_id == account.company_id,
-                Warehouse.is_fulfillment == False,
-                Warehouse.is_active == True,
-            ).order_by(Warehouse.created_at.asc())
-            local_warehouse = (await session.execute(stmt_wh)).scalars().first()
-
-            if local_warehouse:
-                for item in order_items_data:
-                    it_obj = item.get("item", {})
-                    seller_sku = it_obj.get("seller_sku") or it_obj.get("seller_custom_field")
-                    quantity = int(item.get("quantity", 1))
-
-                    if seller_sku:
-                        # Buscar variante asociada en catálogo por SKU directo o por ProductSKU
-                        stmt_var = (
-                            select(ProductVariant)
-                            .where(
-                                (ProductVariant.sku == seller_sku) |
-                                (ProductVariant.id.in_(select(ProductSKU.variant_id).where(ProductSKU.seller_sku == seller_sku))),
-                                ProductVariant.company_id == account.company_id,
-                            )
-                        )
-                        variant = (await session.execute(stmt_var)).scalars().first()
-
-                        if variant:
-                            try:
-                                if order_status in ["paid", "confirmed"]:
-                                    await self.inventory_service.reserve_stock_for_order(
-                                        session=session,
-                                        warehouse_id=local_warehouse.id,
-                                        variant_id=variant.id,
-                                        quantity=quantity,
-                                        order_id=str(order_id_int),
-                                        notes=f"Reserva automática por webhook MeLi #{order_id_int}",
-                                    )
-                                elif order_status == "cancelled":
-                                    await self.inventory_service.release_order_reservation(
-                                        session=session,
-                                        warehouse_id=local_warehouse.id,
-                                        variant_id=variant.id,
-                                        quantity=quantity,
-                                        order_id=str(order_id_int),
-                                        notes=f"Liberación por cancelación en MeLi #{order_id_int}",
-                                    )
-                            except Exception as stock_err:
-                                logger.warning(f"Aviso al reservar/liberar inventario para orden {order_id_int}: {stock_err}")
-                                if not event.discrepancy_details:
-                                    event.discrepancy_details = {}
-                                event.discrepancy_details["stock_warning"] = str(stock_err)
+        order = await self.order_service.create_or_update_order(session, account, order_data)
+        event.discrepancy_details = {
+            "order_id": order.meli_order_id,
+            "status": order.status,
+            "estimated_profit": float(order.estimated_profit),
+            "net_margin_pct": float(order.net_margin_pct),
+        }
 
     async def _process_payment_topic(
         self,

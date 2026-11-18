@@ -23,12 +23,18 @@ class AppException(Exception):
 class EntityNotFoundException(AppException):
     """Recurso o entidad no encontrada en la base de datos."""
 
-    def __init__(self, entity_name: str, identifier: Any):
+    def __init__(self, entity_name: str, identifier: Any, field_name: str | None = None):
+        if field_name is not None:
+            ident = str(field_name)
+            details = {"entity": entity_name, "field": str(identifier), "identifier": ident}
+        else:
+            ident = str(identifier)
+            details = {"entity": entity_name, "identifier": ident}
         super().__init__(
-            message=f"{entity_name} con identificador '{identifier}' no fue encontrado.",
+            message=f"{entity_name} con identificador '{ident}' no fue encontrado.",
             status_code=404,
             code="RESOURCE_NOT_FOUND",
-            details={"entity": entity_name, "identifier": str(identifier)},
+            details=details,
         )
 
 
