@@ -19,6 +19,7 @@ from src.models.product import ProductSKU, ProductVariant
 from src.models.shipment import Shipment
 from src.models.warehouse import Inventory, InventoryMovement, Warehouse
 from src.schemas.order import SalesReportMetricPeriod, SalesReportResponse
+from src.services.finance_service import FinanceService
 from src.services.inventory_service import InventoryService
 
 logger = get_logger("order_service")
@@ -38,6 +39,7 @@ class OrderService:
 
     def __init__(self):
         self.inventory_service = InventoryService()
+        self.finance_service = FinanceService()
 
     async def create_or_update_order(
         self, session: AsyncSession, account: MeliAccount, order_data: dict[str, Any]
@@ -198,6 +200,48 @@ class OrderService:
                 session.add(order_item)
             await session.flush()
 
+        # Procesar pagos de Mercado Pago asociados
+        payments_data = order_data.get("payments", [])
+        if payments_data:
+            stmt_p = select(Payment).where(Payment.order_id == order.id)
+            existing_payments = {p.meli_payment_id: p for p in (await session.execute(stmt_p)).scalars().all()}
+            for p_data in payments_data:
+                p_meli_id = int(p_data.get("id") or 0)
+                if not p_meli_id:
+                    continue
+                p_status = p_data.get("status", "approved")
+                p_tx_amount = float(p_data.get("transaction_amount") or 0.0)
+                p_fee = float(p_data.get("marketplace_fee") or 0.0)
+                p_type = p_data.get("payment_type")
+                p_method = p_data.get("payment_method_id")
+                dt_app_str = p_data.get("date_approved")
+                dt_approved = None
+                if dt_app_str:
+                    try:
+                        dt_approved = datetime.fromisoformat(str(dt_app_str).replace("Z", "+00:00"))
+                    except Exception:
+                        dt_approved = None
+
+                if p_meli_id in existing_payments:
+                    p_obj = existing_payments[p_meli_id]
+                    p_obj.status = p_status
+                    p_obj.transaction_amount = p_tx_amount
+                    p_obj.marketplace_fee = p_fee
+                    p_obj.date_approved = dt_approved
+                else:
+                    new_p = Payment(
+                        order_id=order.id,
+                        meli_payment_id=p_meli_id,
+                        status=p_status,
+                        payment_type=p_type,
+                        payment_method_id=p_method,
+                        transaction_amount=p_tx_amount,
+                        marketplace_fee=p_fee,
+                        date_approved=dt_approved,
+                    )
+                    session.add(new_p)
+            await session.flush()
+
         # Calcular Rentabilidad Financiera Neta y Retenciones SAT
         stmt_cost = select(CostStructure).where(CostStructure.company_id == account.company_id, CostStructure.is_default == True)
         cost_struct = (await session.execute(stmt_cost)).scalar_one_or_none()
@@ -328,6 +372,11 @@ class OrderService:
                             except Exception as inv_err:
                                 logger.warning(f"Aviso de inventario para orden #{meli_order_id}: {inv_err}")
 
+        try:
+            await self.finance_service.record_transactions_for_order(session, order, account, audit)
+        except Exception as e:
+            logger.warning(f"Aviso al registrar partidas financieras para orden #{meli_order_id}: {e}")
+
         await session.flush()
         return order
 
@@ -402,6 +451,13 @@ class OrderService:
             metadata_info={"responsible": responsible, "reason": reason},
         )
         order.timelines.append(tl_cancel)
+        try:
+            account = order.meli_account or await session.get(MeliAccount, order.meli_account_id)
+            if account:
+                await self.finance_service.record_transactions_for_order(session, order, account)
+        except Exception as e:
+            logger.warning(f"Aviso al registrar partidas financieras para orden #{order.meli_order_id}: {e}")
+
         await session.flush()
         return order
 
@@ -500,6 +556,13 @@ class OrderService:
             actor="Control de Calidad Almacén",
         )
         order.timelines.append(tl_ret)
+        try:
+            account = order.meli_account or await session.get(MeliAccount, order.meli_account_id)
+            if account:
+                await self.finance_service.record_transactions_for_order(session, order, account)
+        except Exception as e:
+            logger.warning(f"Aviso al registrar partidas financieras para orden #{order.meli_order_id}: {e}")
+
         await session.flush()
         return order
 

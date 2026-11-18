@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.connectors.meli.client import MeliHTTPClient
 from src.connectors.meli.exceptions import MeliAPIException, MeliAuthException
+from src.connectors.meli.finance import MeliFinanceClient
 from src.connectors.meli.inventory import MeliInventoryClient
 from src.connectors.meli.items import MeliItemsClient
 from src.connectors.meli.oauth import MeliOAuthManager
@@ -93,6 +94,7 @@ class MercadoLibreConnector:
         self.orders = MeliOrdersClient(self._http)
         self.shipments = MeliShipmentsClient(self._http)
         self.promotions = MeliPromotionsClient(self._http)
+        self.finance = MeliFinanceClient(self._http)
 
     def _load_from_account_entity(self, account: MeliAccount) -> None:
         """Carga y desencripta de forma transparente los tokens de la entidad MeliAccount."""

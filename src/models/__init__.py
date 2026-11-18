@@ -3,6 +3,7 @@
 from src.models.audit import AuditLog
 from src.models.base import Base
 from src.models.cost import CostStructure, ProfitabilityAudit
+from src.models.finance import ExternalExpense, FinancialDiscrepancy, FinancialTransaction, Settlement
 from src.models.meli_account import MeliAccount
 from src.models.order import Order, OrderClaim, OrderItem, OrderTimeline
 from src.models.payment import Payment
@@ -53,6 +54,10 @@ __all__ = [
     "PromotionItem",
     "CostStructure",
     "ProfitabilityAudit",
+    "Settlement",
+    "ExternalExpense",
+    "FinancialTransaction",
+    "FinancialDiscrepancy",
     "Supplier",
     "PurchaseOrder",
     "PurchaseOrderItem",

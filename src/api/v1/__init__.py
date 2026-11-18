@@ -5,6 +5,7 @@ from fastapi import APIRouter
 from src.api.v1.audit import router as audit_router
 from src.api.v1.auth import router as auth_router
 from src.api.v1.companies import router as companies_router
+from src.api.v1.finances import router as finances_router
 from src.api.v1.health import router as health_router
 from src.api.v1.inventory import router as inventory_router
 from src.api.v1.meli_accounts import router as meli_accounts_router
@@ -29,6 +30,7 @@ api_v1_router.include_router(products_router)
 api_v1_router.include_router(warehouses_router)
 api_v1_router.include_router(inventory_router)
 api_v1_router.include_router(orders_router)
+api_v1_router.include_router(finances_router)
 api_v1_router.include_router(suppliers_router)
 api_v1_router.include_router(settings_router)
 api_v1_router.include_router(sync_router)

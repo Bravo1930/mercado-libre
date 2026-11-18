@@ -79,6 +79,10 @@ class CompanyContext:
         return self.company.id
 
     @property
+    def user_id(self) -> uuid.UUID:
+        return self.user.id
+
+    @property
     def tenant_id(self) -> uuid.UUID:
         return self.company.tenant_id
 
