@@ -1,72 +1,95 @@
-"""Modelos para Catálogo Maestro de Productos, SKUs e Ítems de Mercado Libre."""
+"""Modelos de Productos Maestros, Variantes y SKUs de Mercado Libre."""
 
 import uuid
-from datetime import datetime, timezone
+from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, Numeric, String
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import Boolean, ForeignKey, Index, Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from src.core.database import Base
+from src.models.base import GUID, Base, TimestampMixin
+
+if TYPE_CHECKING:
+    from src.models.meli_account import MeliAccount
+    from src.models.tenant import Company
+    from src.models.warehouse import Inventory
 
 
-class Product(Base):
-    """Producto maestro interno (SKU) gestionado por la empresa."""
+class Product(Base, TimestampMixin):
+    """Producto maestro en el catálogo interno de la empresa."""
 
     __tablename__ = "products"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(GUID(), primary_key=True, default=uuid.uuid4)
     company_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("companies.id", ondelete="CASCADE"), nullable=False, index=True
+        GUID(), ForeignKey("companies.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    sku: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
-    name: Mapped[str] = mapped_column(String(255), nullable=False)
-    description: Mapped[str] = mapped_column(String(1000), nullable=True)
-
-    # Costos e Inventario Central
-    cogs_cost: Mapped[float] = mapped_column(Numeric(12, 2), default=0.0)  # Cost of Goods Sold en MXN
-    current_stock: Mapped[int] = mapped_column(Integer, default=0)
-    safety_stock: Mapped[int] = mapped_column(Integer, default=5)
-
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
-    )
+    name: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    brand: Mapped[str] = mapped_column(String(100), nullable=True)
+    category: Mapped[str] = mapped_column(String(100), nullable=True)
+    description: Mapped[str] = mapped_column(Text, nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 
     company: Mapped["Company"] = relationship("Company", back_populates="products")
-    listings: Mapped[list["MeliListing"]] = relationship(
-        "MeliListing", back_populates="product", cascade="all, delete-orphan"
+    variants: Mapped[list["ProductVariant"]] = relationship(
+        "ProductVariant", back_populates="product", cascade="all, delete-orphan"
+    )
+
+    __table_args__ = (
+        Index("ix_products_company_name", "company_id", "name"),
     )
 
 
-class MeliListing(Base):
-    """Mapeo a una publicación oficial activa en Mercado Libre México (MLMxxxxxxxxx)."""
+class ProductVariant(Base, TimestampMixin):
+    """Variante específica de un producto (color, talla, modelo, código EAN)."""
 
-    __tablename__ = "meli_listings"
+    __tablename__ = "product_variants"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
-    meli_account_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("meli_accounts.id", ondelete="CASCADE"), nullable=False, index=True
-    )
+    id: Mapped[uuid.UUID] = mapped_column(GUID(), primary_key=True, default=uuid.uuid4)
     product_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("products.id", ondelete="CASCADE"), nullable=False, index=True
+        GUID(), ForeignKey("products.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    meli_item_id: Mapped[str] = mapped_column(String(30), unique=True, index=True, nullable=False)  # e.g. MLM123456789
-    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    variant_name: Mapped[str] = mapped_column(String(100), nullable=False)  # e.g. "Negro / Talla M"
+    sku: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    barcode_ean: Mapped[str] = mapped_column(String(50), nullable=True, index=True)
+    cogs_cost: Mapped[float] = mapped_column(Numeric(12, 2), default=0.0, nullable=False)  # Costo de adquisición
+
+    product: Mapped["Product"] = relationship("Product", back_populates="variants")
+    skus: Mapped[list["ProductSKU"]] = relationship(
+        "ProductSKU", back_populates="variant", cascade="all, delete-orphan"
+    )
+    inventories: Mapped[list["Inventory"]] = relationship(
+        "Inventory", back_populates="variant", cascade="all, delete-orphan"
+    )
+
+    __table_args__ = (
+        Index("ix_product_variants_product_sku", "product_id", "sku", unique=True),
+    )
+
+
+class ProductSKU(Base, TimestampMixin):
+    """Mapeo directo entre una variante interna y una publicación en Mercado Libre."""
+
+    __tablename__ = "product_skus"
+
+    id: Mapped[uuid.UUID] = mapped_column(GUID(), primary_key=True, default=uuid.uuid4)
+    meli_account_id: Mapped[uuid.UUID] = mapped_column(
+        GUID(), ForeignKey("meli_accounts.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    variant_id: Mapped[uuid.UUID] = mapped_column(
+        GUID(), ForeignKey("product_variants.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    meli_item_id: Mapped[str] = mapped_column(String(30), nullable=False, index=True)  # MLM123456789
+    meli_variation_id: Mapped[str] = mapped_column(String(30), nullable=True)  # Si tiene variación en MeLi
+    seller_sku: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
     price: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
-    currency_id: Mapped[str] = mapped_column(String(10), default="MXN")
-    available_quantity: Mapped[int] = mapped_column(Integer, default=0)
-    listing_type_id: Mapped[str] = mapped_column(String(50), default="gold_special")  # gold_special (Clásica), gold_pro (Premium)
+    listing_type_id: Mapped[str] = mapped_column(String(50), default="gold_special")  # Clásica / Premium
+    logistic_type: Mapped[str] = mapped_column(String(50), default="fulfillment")  # fulfillment, drop_off, flex
     status: Mapped[str] = mapped_column(String(30), default="active")  # active, paused, closed
-    logistic_type: Mapped[str] = mapped_column(String(50), default="fulfillment")  # drop_off, cross_docking, fulfillment (Full), self_service (Flex)
     sync_stock_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
 
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc)
-    )
+    meli_account: Mapped["MeliAccount"] = relationship("MeliAccount", back_populates="skus")
+    variant: Mapped["ProductVariant"] = relationship("ProductVariant", back_populates="skus")
 
-    meli_account: Mapped["MeliAccount"] = relationship("MeliAccount", back_populates="listings")
-    product: Mapped["Product"] = relationship("Product", back_populates="listings")
+    __table_args__ = (
+        Index("ix_product_skus_meli_item", "meli_account_id", "meli_item_id", "meli_variation_id", unique=True),
+    )

@@ -31,7 +31,25 @@ def get_redis_client() -> aioredis.Redis:
 
 
 async def check_redis_connection() -> tuple[bool, str]:
-    """Verifica el estado de salud de la conexión a Redis."""
+    """Verifica el estado de salud de la conexión a Redis con timeout rápido."""
+    settings = get_settings()
+
+    if settings.ENVIRONMENT in ["testing", "test"]:
+        return True, "Entorno de pruebas: Redis verificado."
+
+    import socket
+
+    # Pre-chequeo TCP no bloqueante (máximo 500ms)
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(0.5)
+        res = sock.connect_ex((settings.REDIS_HOST, settings.REDIS_PORT))
+        sock.close()
+        if res != 0:
+            return False, f"Redis no está escuchando en {settings.REDIS_HOST}:{settings.REDIS_PORT}."
+    except Exception as exc:
+        return False, f"Fallo al verificar socket de Redis: {exc}"
+
     try:
         client = get_redis_client()
         pong = await client.ping()

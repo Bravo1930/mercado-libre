@@ -1,72 +1,73 @@
-"""Modelos de Órdenes de Venta, Envíos y Auditoría de Rentabilidad Neta."""
+"""Modelos de Ventas, Pedidos y Partidas de Mercado Libre México."""
 
 import uuid
 from datetime import datetime, timezone
+from typing import TYPE_CHECKING
 
-from sqlalchemy import BigInteger, DateTime, ForeignKey, Numeric, String
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import BigInteger, DateTime, ForeignKey, Index, Integer, Numeric, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from src.core.database import Base
+from src.models.base import GUID, Base, TimestampMixin
+
+if TYPE_CHECKING:
+    from src.models.cost import ProfitabilityAudit
+    from src.models.meli_account import MeliAccount
+    from src.models.payment import Payment
+    from src.models.shipment import Shipment
 
 
-class Order(Base):
-    """Órdenes de venta sincronizadas desde Mercado Libre."""
+class Order(Base, TimestampMixin):
+    """Venta / Pedido oficial sincronizado desde Mercado Libre México."""
 
     __tablename__ = "orders"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(GUID(), primary_key=True, default=uuid.uuid4)
     meli_account_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("meli_accounts.id", ondelete="CASCADE"), nullable=False, index=True
+        GUID(), ForeignKey("meli_accounts.id", ondelete="CASCADE"), nullable=False, index=True
     )
     meli_order_id: Mapped[int] = mapped_column(BigInteger, unique=True, index=True, nullable=False)
-    status: Mapped[str] = mapped_column(String(50), nullable=False)  # paid, cancelled, etc.
+    status: Mapped[str] = mapped_column(String(50), nullable=False, index=True)  # paid, cancelled, etc.
     buyer_id: Mapped[int] = mapped_column(BigInteger, nullable=True)
     buyer_nickname: Mapped[str] = mapped_column(String(100), nullable=True)
     total_amount: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
     paid_amount: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
-    currency_id: Mapped[str] = mapped_column(String(10), default="MXN")
-    shipping_id: Mapped[int] = mapped_column(BigInteger, nullable=True)
-    shipping_status: Mapped[str] = mapped_column(String(50), nullable=True)
-
-    date_created_meli: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    synced_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
-    )
+    currency_id: Mapped[str] = mapped_column(String(10), default="MXN", nullable=False)
+    date_created_meli: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
 
     meli_account: Mapped["MeliAccount"] = relationship("MeliAccount", back_populates="orders")
+    items: Mapped[list["OrderItem"]] = relationship(
+        "OrderItem", back_populates="order", cascade="all, delete-orphan"
+    )
+    payments: Mapped[list["Payment"]] = relationship(
+        "Payment", back_populates="order", cascade="all, delete-orphan"
+    )
+    shipments: Mapped[list["Shipment"]] = relationship(
+        "Shipment", back_populates="order", cascade="all, delete-orphan"
+    )
     profitability: Mapped["ProfitabilityAudit"] = relationship(
         "ProfitabilityAudit", back_populates="order", uselist=False, cascade="all, delete-orphan"
     )
 
-
-class ProfitabilityAudit(Base):
-    """Desglose financiero exacto de la venta (Rentabilidad Neta y Retenciones SAT México)."""
-
-    __tablename__ = "profitability_audits"
-
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    __table_args__ = (
+        Index("ix_orders_account_status_date", "meli_account_id", "status", "date_created_meli"),
     )
+
+
+class OrderItem(Base, TimestampMixin):
+    """Partida o producto individual dentro de una orden de venta."""
+
+    __tablename__ = "order_items"
+
+    id: Mapped[uuid.UUID] = mapped_column(GUID(), primary_key=True, default=uuid.uuid4)
     order_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("orders.id", ondelete="CASCADE"), unique=True, nullable=False
+        GUID(), ForeignKey("orders.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    gross_sale_price: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
-    cogs_total: Mapped[float] = mapped_column(Numeric(12, 2), default=0.0)
-    meli_commission_fee: Mapped[float] = mapped_column(Numeric(12, 2), default=0.0)
-    shipping_cost_seller: Mapped[float] = mapped_column(Numeric(12, 2), default=0.0)
+    meli_item_id: Mapped[str] = mapped_column(String(30), nullable=False, index=True)
+    meli_variation_id: Mapped[str] = mapped_column(String(30), nullable=True)
+    seller_sku: Mapped[str] = mapped_column(String(100), nullable=True, index=True)
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    quantity: Mapped[int] = mapped_column(Integer, nullable=False)
+    unit_price: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
+    sale_fee: Mapped[float] = mapped_column(Numeric(12, 2), default=0.0, nullable=False)
 
-    # Retenciones Fiscales Oficiales de Plataformas Tecnológicas México
-    sat_iva_retention: Mapped[float] = mapped_column(Numeric(12, 2), default=0.0)  # 8% o 16%
-    sat_isr_retention: Mapped[float] = mapped_column(Numeric(12, 2), default=0.0)  # 1% o 20%
-
-    net_profit: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
-    net_margin_pct: Mapped[float] = mapped_column(Numeric(6, 2), nullable=False)
-
-    calculated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
-    )
-
-    order: Mapped["Order"] = relationship("Order", back_populates="profitability")
+    order: Mapped["Order"] = relationship("Order", back_populates="items")

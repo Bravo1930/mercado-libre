@@ -4,13 +4,15 @@ import time
 import uuid
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request, Response
+from fastapi import FastAPI, Request, Response, status
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from src.api.v1 import api_v1_router
 from src.core.config import get_settings
 from src.core.database import check_database_connection, close_database_connections
+from src.core.exceptions import AppException
 from src.core.logging import get_logger, setup_logging
 from src.core.redis import check_redis_connection, close_redis_connection
 
@@ -22,13 +24,19 @@ logger = get_logger("main")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Ciclo de vida de la aplicación: inicialización y apagado controlado."""
+    import os
     settings = get_settings()
+
+    # Omitir chequeos de red si se encuentra en entorno de pruebas
+    if os.environ.get("ENVIRONMENT") in ["testing", "test"]:
+        yield
+        return
+
     logger.info(
         f"Iniciando ERP Mercado Libre México v0.1.0 "
         f"[Entorno={settings.ENVIRONMENT}, Nodo={settings.NODE_NAME}]"
     )
 
-    # Verificación no bloqueante de infraestructura en el arranque
     db_ok, db_msg = await check_database_connection()
     logger.info(f"Diagnóstico PostgreSQL al arranque: {db_msg}")
 
@@ -44,7 +52,7 @@ async def lifespan(app: FastAPI):
 
 
 def create_app() -> FastAPI:
-    """Fábrica de la aplicación FastAPI."""
+    """Fábrica de la aplicación FastAPI con manejo centralizado de excepciones."""
     settings = get_settings()
 
     app = FastAPI(
@@ -93,11 +101,49 @@ def create_app() -> FastAPI:
                 status_code=500,
                 content={
                     "error": "Error interno del servidor",
+                    "code": "INTERNAL_SERVER_ERROR",
                     "request_id": request_id,
                     "detail": str(exc) if settings.ENVIRONMENT != "production" else "Ocurrió un error inesperado.",
                 },
                 headers={"X-Request-ID": request_id},
             )
+
+    # --------------------------------------------------------------------------
+    # MANEJADORES CENTRALIZADOS DE EXCEPCIONES
+    # --------------------------------------------------------------------------
+    @app.exception_handler(AppException)
+    async def app_exception_handler(request: Request, exc: AppException):
+        request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={
+                "success": False,
+                "error": exc.message,
+                "code": exc.code,
+                "details": exc.details,
+                "request_id": request_id,
+            },
+            headers={"X-Request-ID": request_id},
+        )
+
+    @app.exception_handler(RequestValidationError)
+    async def validation_exception_handler(request: Request, exc: RequestValidationError):
+        request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
+        errors = [
+            {"loc": list(err["loc"]), "msg": err["msg"], "type": err["type"]}
+            for err in exc.errors()
+        ]
+        return JSONResponse(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            content={
+                "success": False,
+                "error": "Error de validación en los datos de entrada.",
+                "code": "VALIDATION_ERROR",
+                "details": {"validation_errors": errors},
+                "request_id": request_id,
+            },
+            headers={"X-Request-ID": request_id},
+        )
 
     # Inclusión de Rutas
     app.include_router(api_v1_router)

@@ -39,6 +39,7 @@ class Settings(BaseSettings):
     INTERNAL_API_KEY: str = Field(default="dev_internal_api_key_for_testing")
 
     # 3. Base de Datos PostgreSQL 16
+    DATABASE_URL: str | None = None
     POSTGRES_HOST: str = "127.0.0.1"
     POSTGRES_PORT: int = 5432
     POSTGRES_DB: str = "meli_erp_db"
@@ -49,6 +50,7 @@ class Settings(BaseSettings):
     DB_TIMEOUT_SECONDS: int = 15
 
     # 4. Redis 7
+    REDIS_URL: str | None = None
     REDIS_HOST: str = "127.0.0.1"
     REDIS_PORT: int = 6379
     REDIS_PASSWORD: str = ""
@@ -78,7 +80,9 @@ class Settings(BaseSettings):
 
     @property
     def async_database_url(self) -> str:
-        """Genera la URI asíncrona para SQLAlchemy y asyncpg."""
+        """Genera la URI asíncrona para SQLAlchemy."""
+        if self.DATABASE_URL:
+            return self.DATABASE_URL
         return (
             f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}"
             f"@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
@@ -87,6 +91,9 @@ class Settings(BaseSettings):
     @property
     def sync_database_url(self) -> str:
         """Genera la URI síncrona para migraciones de Alembic."""
+        if self.DATABASE_URL:
+            # Reemplazar asyncpg por psycopg2 o aiosqlite por sqlite
+            return self.DATABASE_URL.replace("+asyncpg", "+psycopg2").replace("+aiosqlite", "")
         return (
             f"postgresql+psycopg2://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}"
             f"@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
@@ -95,6 +102,8 @@ class Settings(BaseSettings):
     @property
     def redis_url(self) -> str:
         """Genera la URI de conexión a Redis."""
+        if self.REDIS_URL:
+            return self.REDIS_URL
         auth = f":{self.REDIS_PASSWORD}@" if self.REDIS_PASSWORD else ""
         return f"redis://{auth}{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
 

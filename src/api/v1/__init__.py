@@ -1,12 +1,34 @@
-"""Rutas de la versión 1 de la API del ERP."""
+"""Rutas centrales de la API REST v1 del ERP."""
 
 from fastapi import APIRouter
 
+from src.api.v1.audit import router as audit_router
 from src.api.v1.auth import router as auth_router
+from src.api.v1.companies import router as companies_router
 from src.api.v1.health import router as health_router
+from src.api.v1.inventory import router as inventory_router
+from src.api.v1.meli_accounts import router as meli_accounts_router
+from src.api.v1.orders import router as orders_router
+from src.api.v1.products import router as products_router
+from src.api.v1.settings import router as settings_router
+from src.api.v1.suppliers import router as suppliers_router
+from src.api.v1.users import router as users_router
+from src.api.v1.warehouses import router as warehouses_router
 from src.api.v1.webhooks import router as webhooks_router
 
 api_v1_router = APIRouter(prefix="/api/v1")
+
+# Registro de routers modulares
 api_v1_router.include_router(health_router)
-api_v1_router.include_router(webhooks_router)
 api_v1_router.include_router(auth_router)
+api_v1_router.include_router(companies_router)
+api_v1_router.include_router(users_router)
+api_v1_router.include_router(meli_accounts_router)
+api_v1_router.include_router(products_router)
+api_v1_router.include_router(warehouses_router)
+api_v1_router.include_router(inventory_router)
+api_v1_router.include_router(orders_router)
+api_v1_router.include_router(suppliers_router)
+api_v1_router.include_router(settings_router)
+api_v1_router.include_router(audit_router)
+api_v1_router.include_router(webhooks_router)

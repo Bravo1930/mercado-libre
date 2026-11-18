@@ -47,16 +47,22 @@ def setup_logging() -> None:
     console_handler.setFormatter(formatter)
     root_logger.addHandler(console_handler)
 
-    # 2. Handler de Archivo Rotativo (10 MB por archivo, 5 respaldos)
-    file_handler = logging.handlers.RotatingFileHandler(
-        filename=str(log_file),
-        maxBytes=10 * 1024 * 1024,  # 10 MB
-        backupCount=5,
-        encoding="utf-8",
-    )
-    file_handler.setLevel(logging.INFO)
-    file_handler.setFormatter(formatter)
-    root_logger.addHandler(file_handler)
+    # 2. Handler de Archivo Rotativo (opcional o si hay permisos de escritura)
+    if settings.ENVIRONMENT != "testing":
+        try:
+            file_handler = logging.handlers.RotatingFileHandler(
+                filename=str(log_file),
+                maxBytes=10 * 1024 * 1024,  # 10 MB
+                backupCount=5,
+                encoding="utf-8",
+            )
+            file_handler.setLevel(logging.INFO)
+            file_handler.setFormatter(formatter)
+            root_logger.addHandler(file_handler)
+        except (PermissionError, OSError) as exc:
+            logging.getLogger("erp.core.logging").warning(
+                f"No se pudo habilitar archivo de log en {log_file} ({exc}). Continuando con logs en consola."
+            )
 
     # Reducir ruido de librerías externas
     logging.getLogger("uvicorn.access").setLevel(logging.WARNING)

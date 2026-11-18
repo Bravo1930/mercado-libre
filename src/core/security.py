@@ -3,15 +3,14 @@
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+import bcrypt
 from cryptography.fernet import Fernet, InvalidToken
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 
 from src.core.config import get_settings
 from src.core.logging import get_logger
 
 logger = get_logger("security")
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 def get_fernet_cipher() -> Fernet:
@@ -46,13 +45,19 @@ def decrypt_token(encrypted_token: str) -> str:
 
 
 def hash_password(password: str) -> str:
-    """Genera el hash seguro de una contraseña."""
-    return pwd_context.hash(password)
+    """Genera el hash seguro de una contraseña usando bcrypt nativo."""
+    pwd_bytes = password.encode("utf-8")[:72]
+    salt = bcrypt.gensalt()
+    return bcrypt.hashpw(pwd_bytes, salt).decode("utf-8")
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verifica si la contraseña en texto plano coincide con el hash almacenado."""
-    return pwd_context.verify(plain_password, hashed_password)
+    pwd_bytes = plain_password.encode("utf-8")[:72]
+    try:
+        return bcrypt.checkpw(pwd_bytes, hashed_password.encode("utf-8"))
+    except Exception:
+        return False
 
 
 def create_access_token(data: dict[str, Any], expires_delta: timedelta | None = None) -> str:
