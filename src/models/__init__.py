@@ -2,6 +2,13 @@
 
 from src.models.audit import AuditLog
 from src.models.base import Base
+from src.models.commercial import (
+    CommercialRecommendation,
+    CommercialRule,
+    CompetitorBenchmark,
+    PriceHistory,
+    ScheduledPriceChange,
+)
 from src.models.cost import CostStructure, ProfitabilityAudit
 from src.models.finance import ExternalExpense, FinancialDiscrepancy, FinancialTransaction, Settlement
 from src.models.meli_account import MeliAccount
@@ -56,6 +63,11 @@ __all__ = [
     "InternalLabelPrintBatch",
     "Promotion",
     "PromotionItem",
+    "CommercialRule",
+    "PriceHistory",
+    "ScheduledPriceChange",
+    "CompetitorBenchmark",
+    "CommercialRecommendation",
     "CostStructure",
     "ProfitabilityAudit",
     "Settlement",

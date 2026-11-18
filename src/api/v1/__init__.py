@@ -4,6 +4,7 @@ from fastapi import APIRouter
 
 from src.api.v1.audit import router as audit_router
 from src.api.v1.auth import router as auth_router
+from src.api.v1.commercial import router as commercial_router
 from src.api.v1.companies import router as companies_router
 from src.api.v1.finances import router as finances_router
 from src.api.v1.health import router as health_router
@@ -31,6 +32,7 @@ api_v1_router.include_router(products_router)
 api_v1_router.include_router(warehouses_router)
 api_v1_router.include_router(inventory_router)
 api_v1_router.include_router(orders_router)
+api_v1_router.include_router(commercial_router)
 api_v1_router.include_router(logistics_router)
 api_v1_router.include_router(finances_router)
 api_v1_router.include_router(suppliers_router)

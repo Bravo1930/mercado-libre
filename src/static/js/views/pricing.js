@@ -6,8 +6,11 @@
 import { api } from '../api.js';
 import { icons } from '../icons.js';
 import { showToast } from '../components/toast.js';
+import { openModal, closeModal } from '../components/modal.js';
 
 let productsList = [];
+let meliAccountsList = [];
+let priceHistoryList = [];
 
 export async function renderPricing(container) {
   container.innerHTML = `
@@ -16,11 +19,16 @@ export async function renderPricing(container) {
       <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 class="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
-            ${icons.calculator} Precios y Rentabilidad SAT
+            ${icons.calculator} Administrador de Precios y Rentabilidad SAT
           </h1>
           <p class="text-sm text-slate-500 mt-1">
-            Simulador inteligente de precios con desglose de comisiones MeLi, cargos fijos, retenciones SAT y margen neto real.
+            Simulador inteligente de precios con desglose oficial SAT (IVA 8%, ISR 1%), comisiones MeLi, reglas de salvaguarda y auditoría con restauración.
           </p>
+        </div>
+        <div class="flex items-center gap-2">
+          <button id="btn-view-history" class="btn-secondary text-xs font-semibold px-3 py-2 flex items-center gap-1.5">
+            ${icons.history || icons.clock} Historial y Restauración
+          </button>
         </div>
       </div>
 
@@ -99,6 +107,12 @@ export async function renderPricing(container) {
               <option value="without_rfc">Sin RFC Registrado (20.0% ISR + 16.0% IVA = 36.0% Sanción)</option>
             </select>
           </div>
+
+          <div class="pt-2">
+            <button id="btn-backend-simulate" class="w-full btn-primary py-2.5 flex items-center justify-center gap-2 text-xs font-bold shadow-sm">
+              ${icons.check} Validar con Motor Fiscal Backend (SAT México)
+            </button>
+          </div>
         </div>
 
         <!-- Cascada de Rentabilidad y Resultados (Columna Derecha 7 cols) -->
@@ -139,7 +153,7 @@ export async function renderPricing(container) {
               </div>
               <div class="py-2 flex justify-between text-slate-600">
                 <span class="flex items-center gap-1.5 text-xs">
-                  <span class="w-2 h-2 rounded-full bg-purple-500"></span> (-) Retención Fiscal SAT (ISR + IVA):
+                  <span class="w-2 h-2 rounded-full bg-purple-500"></span> (-) Retención Fiscal SAT (ISR 1% + IVA 8%):
                 </span>
                 <span id="res-taxes" class="font-mono font-medium text-purple-700">-$44.91 MXN</span>
               </div>
@@ -166,11 +180,11 @@ export async function renderPricing(container) {
         </div>
       </div>
 
-      <!-- Tabla de Productos del Catálogo con Simulación Rápida -->
+      <!-- Tabla de Productos del Catálogo con Simulación y Modificación MeLi -->
       <div class="card overflow-hidden">
         <div class="p-4 border-b border-slate-200 flex items-center justify-between">
-          <h2 class="text-base font-bold text-slate-900">Catálogo de Productos para Simulación</h2>
-          <span class="text-xs text-slate-500">Haz clic en "Analizar Margen" para precargar los costos en el simulador</span>
+          <h2 class="text-base font-bold text-slate-900">Catálogo de Productos y Precios</h2>
+          <span class="text-xs text-slate-500">Simulación inmediata y modificación oficial de precios en Mercado Libre</span>
         </div>
         <div class="overflow-x-auto">
           <table class="w-full text-left border-collapse">
@@ -181,7 +195,7 @@ export async function renderPricing(container) {
                 <th class="p-3">Precio Base</th>
                 <th class="p-3">Costo Base (COGS)</th>
                 <th class="p-3">Estado</th>
-                <th class="p-3 text-right">Acción</th>
+                <th class="p-3 text-right">Acciones</th>
               </tr>
             </thead>
             <tbody id="pricing-products-body" class="divide-y divide-slate-100 text-sm">
@@ -201,13 +215,49 @@ export async function renderPricing(container) {
   const commSelect = container.querySelector('#sim-commission-pct');
   const shipSelect = container.querySelector('#sim-shipping-cost');
   const taxSelect = container.querySelector('#sim-tax-regime');
+  const btnBackendSim = container.querySelector('#btn-backend-simulate');
+  const btnViewHistory = container.querySelector('#btn-view-history');
 
   [pvpInput, cogsInput, commSelect, shipSelect, taxSelect].forEach((el) => {
     el.addEventListener('input', runSimulation);
     el.addEventListener('change', runSimulation);
   });
 
+  if (btnBackendSim) {
+    btnBackendSim.addEventListener('click', async () => {
+      const pvp = parseFloat(document.getElementById('sim-pvp')?.value) || 0;
+      const cogs = parseFloat(document.getElementById('sim-cogs')?.value) || 0;
+      const commPct = parseFloat(document.getElementById('sim-commission-pct')?.value) || 15.0;
+      const shippingCost = parseFloat(document.getElementById('sim-shipping-cost')?.value) || 0;
+
+      try {
+        const simRes = await api.post('/commercial/prices/simulate', {
+          regular_price: pvp,
+          discount_pct: 1.0,
+          cogs: cogs,
+          shipping_cost: shippingCost,
+          packaging_cost: 15.0,
+          meli_fee_rate: commPct / 100.0,
+          cofunded_by_meli_pct: 0.0,
+        });
+
+        if (simRes.is_viable) {
+          showToast(`Validación SAT exitosa: Margen neto real ${simRes.net_margin_pct}% ($${simRes.net_profit.toFixed(2)} MXN)`, 'success');
+        } else {
+          showToast(`Alerta de rentabilidad: ${simRes.viability_alert || 'Margen por debajo de reglas'}`, 'warning');
+        }
+      } catch (err) {
+        showToast(err.message || 'Error validando simulación con el backend', 'error');
+      }
+    });
+  }
+
+  if (btnViewHistory) {
+    btnViewHistory.addEventListener('click', openHistoryModal);
+  }
+
   runSimulation();
+  await loadMeliAccounts();
   await loadPricingProducts();
 }
 
@@ -285,6 +335,15 @@ function runSimulation() {
   }
 }
 
+async function loadMeliAccounts() {
+  try {
+    const res = await api.get('/meli-accounts?limit=20');
+    meliAccountsList = res.items || [];
+  } catch (err) {
+    console.warn('No se pudieron cargar cuentas MeLi para pricing', err);
+  }
+}
+
 async function loadPricingProducts() {
   try {
     const res = await api.get('/products?limit=50');
@@ -328,13 +387,21 @@ function renderProductsTable() {
           </span>
         </td>
         <td class="p-3 text-right">
-          <button
-            data-pvp="${defaultPvp}"
-            data-cogs="${defaultCogs}"
-            class="btn-load-sim inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors"
-          >
-            ${icons.calculator} Analizar Margen
-          </button>
+          <div class="flex items-center justify-end gap-1.5">
+            <button
+              data-pvp="${defaultPvp}"
+              data-cogs="${defaultCogs}"
+              class="btn-load-sim inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors"
+            >
+              ${icons.calculator} Analizar
+            </button>
+            <button
+              data-prod-id="${prod.id}"
+              class="btn-edit-meli-price inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors"
+            >
+              ${icons.edit || icons.check} Modificar en MeLi
+            </button>
+          </div>
         </td>
       </tr>
     `;
@@ -355,4 +422,189 @@ function renderProductsTable() {
       }
     });
   });
+
+  tbody.querySelectorAll('.btn-edit-meli-price').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const prodId = btn.dataset.prodId;
+      const prod = productsList.find((p) => p.id === prodId);
+      if (prod) openPriceModal(prod);
+    });
+  });
+}
+
+function openPriceModal(prod) {
+  const accountOptions = meliAccountsList.length > 0
+    ? meliAccountsList.map((a) => `<option value="${a.id}">${a.nickname || a.meli_user_id} (${a.site_id})</option>`).join('')
+    : '<option value="">No hay cuentas MeLi vinculadas</option>';
+
+  const content = `
+    <form id="update-meli-price-form" class="space-y-4">
+      <div class="bg-blue-50 border border-blue-200 text-blue-900 p-3 rounded-lg text-xs leading-relaxed">
+        Modificación directa mediante API REST oficial de Mercado Libre México.
+        El cambio será validado previamente contra las reglas comerciales vigentes (precio piso y márgenes).
+      </div>
+
+      <div>
+        <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Producto</label>
+        <input type="text" class="input-field text-sm bg-slate-50 font-bold" value="${prod.title} (${prod.sku_code || 'SIN SKU'})" disabled />
+      </div>
+
+      <div>
+        <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Cuenta MeLi *</label>
+        <select id="modal-meli-account" class="input-field text-sm" required>
+          ${accountOptions}
+        </select>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs font-bold text-slate-700 uppercase mb-1">ID Publicación (Item ID) *</label>
+          <input
+            type="text"
+            id="modal-meli-item-id"
+            class="input-field text-sm font-mono"
+            placeholder="MLM123456789"
+            value="MLM${Math.floor(100000000 + Math.random() * 900000000)}"
+            required
+          />
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Nuevo Precio (MXN) *</label>
+          <input
+            type="number"
+            id="modal-new-price"
+            class="input-field text-sm font-bold"
+            step="0.50"
+            min="10"
+            value="499.00"
+            required
+          />
+        </div>
+      </div>
+
+      <div>
+        <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Motivo del Ajuste *</label>
+        <select id="modal-price-reason" class="input-field text-sm">
+          <option value="manual" selected>Ajuste Comercial Manual</option>
+          <option value="competitor_match">Igualación de Competencia (Buy Box)</option>
+          <option value="promotion">Campaña Temporal Flash</option>
+          <option value="cost_increase">Ajuste por Incremento de Costos</option>
+        </select>
+      </div>
+
+      <div class="flex justify-end gap-2 pt-2">
+        <button type="button" id="btn-cancel-price-modal" class="btn-secondary">Cancelar</button>
+        <button type="submit" class="btn-primary flex items-center gap-1.5">
+          ${icons.check} Aplicar en Mercado Libre
+        </button>
+      </div>
+    </form>
+  `;
+
+  openModal('Modificar Precio Oficial en Mercado Libre', content);
+  document.getElementById('btn-cancel-price-modal')?.addEventListener('click', closeModal);
+
+  document.getElementById('update-meli-price-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const accountId = document.getElementById('modal-meli-account')?.value;
+    const itemId = document.getElementById('modal-meli-item-id')?.value.trim();
+    const newPrice = parseFloat(document.getElementById('modal-new-price')?.value) || 0;
+    const reason = document.getElementById('modal-price-reason')?.value || 'manual';
+
+    if (!accountId) {
+      showToast('Debes vincular una cuenta de Mercado Libre primero', 'error');
+      return;
+    }
+
+    try {
+      const res = await api.post(`/commercial/prices/${itemId}?meli_account_id=${accountId}`, {
+        new_price: newPrice,
+        reason: reason,
+        bypass_rules: false,
+      });
+      closeModal();
+      showToast(`Precio actualizado a $${res.new_price.toFixed(2)} MXN en Mercado Libre (Confirmado)`, 'success');
+    } catch (err) {
+      showToast(err.message || 'Error al actualizar precio en Mercado Libre', 'error');
+    }
+  });
+}
+
+async function openHistoryModal() {
+  try {
+    const res = await api.get('/commercial/prices/history?limit=20');
+    const items = res.items || [];
+
+    const tableRows = items.length > 0
+      ? items.map((h) => `
+        <tr class="hover:bg-slate-50 transition-colors text-xs">
+          <td class="p-2.5 font-mono text-slate-800">${h.meli_item_id}</td>
+          <td class="p-2.5 font-mono text-slate-500 line-through">$${h.previous_price.toFixed(2)}</td>
+          <td class="p-2.5 font-mono font-bold text-slate-900">$${h.new_price.toFixed(2)}</td>
+          <td class="p-2.5 text-slate-600">${h.change_reason}</td>
+          <td class="p-2.5 text-slate-500">${new Date(h.created_at).toLocaleString()}</td>
+          <td class="p-2.5 text-right">
+            ${
+              h.can_restore
+                ? `<button data-hist-id="${h.id}" class="btn-restore-price inline-flex items-center gap-1 px-2 py-1 text-[11px] font-semibold rounded bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors">
+                    ${icons.refresh || icons.clock} Restaurar
+                  </button>`
+                : `<span class="text-slate-400 text-[11px]">${h.restored_at ? 'Restaurado' : 'No disponible'}</span>`
+            }
+          </td>
+        </tr>
+      `).join('')
+      : '<tr><td colspan="6" class="p-6 text-center text-slate-400">No hay registros de historial de precios aún.</td></tr>';
+
+    const content = `
+      <div class="space-y-4">
+        <p class="text-xs text-slate-500">
+          Registro completo de auditoría para cada modificación de precios. Puedes restaurar precios anteriores directamente a Mercado Libre.
+        </p>
+
+        <div class="overflow-x-auto border border-slate-200 rounded-lg max-h-96">
+          <table class="w-full text-left border-collapse">
+            <thead class="bg-slate-50 border-b border-slate-200 text-[10px] font-bold text-slate-500 uppercase">
+              <tr>
+                <th class="p-2.5">Publicación</th>
+                <th class="p-2.5">Precio Previo</th>
+                <th class="p-2.5">Precio Nuevo</th>
+                <th class="p-2.5">Motivo</th>
+                <th class="p-2.5">Fecha</th>
+                <th class="p-2.5 text-right">Acción</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+              ${tableRows}
+            </tbody>
+          </table>
+        </div>
+
+        <div class="flex justify-end pt-2">
+          <button type="button" id="btn-close-hist-modal" class="btn-secondary">Cerrar</button>
+        </div>
+      </div>
+    `;
+
+    openModal('Historial de Precios y Restauración', content);
+    document.getElementById('btn-close-hist-modal')?.addEventListener('click', closeModal);
+
+    document.querySelectorAll('.btn-restore-price').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const histId = btn.dataset.histId;
+        try {
+          const res = await api.post('/commercial/prices/restore', {
+            history_id: histId,
+            reason: 'Restauración solicitada desde panel de control',
+          });
+          closeModal();
+          showToast(`Precio restaurado exitosamente a $${res.new_price.toFixed(2)} MXN`, 'success');
+        } catch (err) {
+          showToast(err.message || 'Error al restaurar precio', 'error');
+        }
+      });
+    });
+  } catch (err) {
+    showToast(err.message || 'Error cargando historial de precios', 'error');
+  }
 }

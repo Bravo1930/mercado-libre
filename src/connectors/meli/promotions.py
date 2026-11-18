@@ -55,3 +55,17 @@ class MeliPromotionsClient:
             "deal_price": round(float(deal_price), 2),
         }
         return await self._http.post(f"/seller-promotions/items/{item_id}", json_data=payload, params={"app_version": "v2"})
+
+    async def optout_promotion_item(
+        self, item_id: str, promotion_id: str, promotion_type: str
+    ) -> dict[str, Any]:
+        """
+        Remueve una publicación de una campaña o promoción oficial.
+        Endpoint oficial: DELETE /seller-promotions/items/{item_id}
+        """
+        params = {
+            "promotion_id": promotion_id,
+            "promotion_type": promotion_type,
+            "app_version": "v2",
+        }
+        return await self._http.delete(f"/seller-promotions/items/{item_id}", params=params)

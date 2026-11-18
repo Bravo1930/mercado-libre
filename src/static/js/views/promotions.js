@@ -63,6 +63,7 @@ let campaigns = [
   },
 ];
 
+let meliAccounts = [];
 let catalogProducts = [];
 
 export async function renderPromotions(container) {
@@ -72,10 +73,10 @@ export async function renderPromotions(container) {
       <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 class="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
-            ${icons.tag} Promociones y Campañas
+            ${icons.tag} Promociones y Campañas Oficiales
           </h1>
           <p class="text-sm text-slate-500 mt-1">
-            Gestión y postulación de ofertas relámpago, deals del día y campañas co-financiadas en MeLi México.
+            Gestión y postulación de ofertas relámpago, deals del día y campañas co-financiadas en MeLi México (con confirmación oficial obligatoria).
           </p>
         </div>
       </div>
@@ -132,8 +133,19 @@ export async function renderPromotions(container) {
     </div>
   `;
 
-  renderCampaignsTable();
+  await loadMeliAccounts();
   await loadCatalogProducts();
+  await loadOfficialPromotions();
+  renderCampaignsTable();
+}
+
+async function loadMeliAccounts() {
+  try {
+    const res = await api.get('/meli-accounts?limit=20');
+    meliAccounts = res.items || [];
+  } catch (err) {
+    console.warn('No se pudieron cargar cuentas MeLi para promociones', err);
+  }
 }
 
 async function loadCatalogProducts() {
@@ -142,6 +154,33 @@ async function loadCatalogProducts() {
     catalogProducts = res.items || [];
   } catch (err) {
     console.error('Error cargando catálogo para promociones', err);
+  }
+}
+
+async function loadOfficialPromotions() {
+  if (meliAccounts.length === 0) return;
+  const accId = meliAccounts[0].id;
+  try {
+    const officialPromos = await api.get(`/commercial/promotions?meli_account_id=${accId}`);
+    if (Array.isArray(officialPromos) && officialPromos.length > 0) {
+      // Mapear promociones oficiales al formato de la tabla
+      const mapped = officialPromos.map((p) => ({
+        id: p.id || p.promotion_id,
+        name: p.name || `Campaña ${p.type || p.promotion_type}`,
+        type: p.type || p.promotion_type || 'MARKETPLACE_CAMPAIGN',
+        badgeClass: 'bg-purple-50 text-purple-700 border-purple-200',
+        startDate: p.start_date ? p.start_date.substring(0, 10) : '2026-11-20',
+        endDate: p.finish_date ? p.finish_date.substring(0, 10) : '2026-11-27',
+        minDiscount: p.benefits?.percentage_discount || 15,
+        meliSubsidy: p.benefits?.meli_percent || 5,
+        sellerDiscount: (p.benefits?.percentage_discount || 15) - (p.benefits?.meli_percent || 5),
+        itemsEnrolled: 0,
+        status: p.status || 'active',
+      }));
+      campaigns = [...mapped, ...campaigns];
+    }
+  } catch (err) {
+    console.warn('Aviso al consultar promociones oficiales MeLi:', err);
   }
 }
 
@@ -296,11 +335,37 @@ function openEnrollModal(camp) {
   });
 
   const form = document.getElementById('enroll-promo-form');
-  form?.addEventListener('submit', (e) => {
+  form?.addEventListener('submit', async (e) => {
     e.preventDefault();
-    camp.itemsEnrolled += 1;
-    closeModal();
-    renderCampaignsTable();
-    showToast('Producto postulado exitosamente en la campaña de Mercado Libre', 'success');
+    const prodId = document.getElementById('promo-product-select')?.value;
+    const prod = catalogProducts.find((p) => p.id === prodId);
+    const discountVal = parseFloat(document.getElementById('promo-discount-input')?.value) || camp.minDiscount;
+
+    const defaultPrice = 499.00;
+    const dealPrice = Math.round(defaultPrice * (1.0 - (discountVal / 100.0)) * 100) / 100;
+    const itemId = prod?.sku_code ? `MLM_${prod.sku_code}` : 'MLM11223344';
+
+    if (meliAccounts.length > 0) {
+      const accId = meliAccounts[0].id;
+      try {
+        const res = await api.post(`/commercial/promotions/optin?item_id=${itemId}&meli_account_id=${accId}`, {
+          promotion_id: camp.id,
+          promotion_type: camp.type || 'MARKETPLACE_CAMPAIGN',
+          deal_price: dealPrice,
+          validate_viability: true,
+        });
+        camp.itemsEnrolled = (camp.itemsEnrolled || 0) + 1;
+        closeModal();
+        renderCampaignsTable();
+        showToast(`Postulación confirmada oficialmente por Mercado Libre (${res.status})`, 'success');
+      } catch (err) {
+        showToast(`Mercado Libre rechazó la postulación: ${err.message}`, 'error');
+      }
+    } else {
+      camp.itemsEnrolled = (camp.itemsEnrolled || 0) + 1;
+      closeModal();
+      renderCampaignsTable();
+      showToast('Producto postulado localmente (sin cuenta MeLi conectada)', 'info');
+    }
   });
 }

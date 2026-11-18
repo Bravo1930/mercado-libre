@@ -29,6 +29,7 @@ class ModuleEnum(str, Enum):
     ORDERS = "orders"
     LOGISTICS = "logistics"
     FINANCE = "finance"
+    COMMERCIAL = "commercial"
     SUPPLIERS = "suppliers"
     SETTINGS = "settings"
     AUDIT = "audit"
@@ -54,6 +55,7 @@ PRIVATE_COMPANY_MODULES: set[str] = {
     ModuleEnum.MELI_ACCOUNTS.value,
     ModuleEnum.SETTINGS.value,
     ModuleEnum.INVENTORY.value,
+    ModuleEnum.COMMERCIAL.value,
 }
 
 # Matriz base de permisos por defecto para cada rol
@@ -117,6 +119,11 @@ ROLE_DEFAULT_PERMISSIONS: dict[str, set[str]] = {
         "logistics:read",
         "logistics:print_label",
         "logistics:update",
+        "commercial:read",
+        "commercial:create",
+        "commercial:update",
+        "commercial:delete",
+        "commercial:manage",
         "finance:read",
         "finance:create",
         "finance:update",
@@ -150,6 +157,9 @@ ROLE_DEFAULT_PERMISSIONS: dict[str, set[str]] = {
         "orders:read",
         "orders:update",
         "logistics:read",
+        "commercial:read",
+        "commercial:create",
+        "commercial:update",
         "finance:read",
         "finance:export",
         "suppliers:read",
@@ -196,6 +206,8 @@ ROLE_DEFAULT_PERMISSIONS: dict[str, set[str]] = {
         "companies:read",
         "catalog:read",
         "orders:read",
+        "commercial:read",
+        "commercial:update",
         "finance:read",
         "finance:create",
         "finance:update",
