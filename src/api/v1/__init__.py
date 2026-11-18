@@ -13,6 +13,7 @@ from src.api.v1.logistics import router as logistics_router
 from src.api.v1.meli_accounts import router as meli_accounts_router
 from src.api.v1.orders import router as orders_router
 from src.api.v1.products import router as products_router
+from src.api.v1.profitability import router as profitability_router
 from src.api.v1.settings import router as settings_router
 from src.api.v1.suppliers import router as suppliers_router
 from src.api.v1.sync import router as sync_router
@@ -35,6 +36,7 @@ api_v1_router.include_router(orders_router)
 api_v1_router.include_router(commercial_router)
 api_v1_router.include_router(logistics_router)
 api_v1_router.include_router(finances_router)
+api_v1_router.include_router(profitability_router)
 api_v1_router.include_router(suppliers_router)
 api_v1_router.include_router(settings_router)
 api_v1_router.include_router(sync_router)

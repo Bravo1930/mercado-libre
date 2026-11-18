@@ -128,20 +128,35 @@ export async function renderFinances(container) {
 
       <!-- Pestañas de Navegación del Módulo Financiero -->
       <div class="flex border-b border-slate-200 gap-1 text-xs font-bold overflow-x-auto">
-        <button id="tab-btn-transactions" class="fin-tab-btn px-4 py-2.5 border-b-2 border-blue-600 text-blue-600 flex items-center gap-1.5 transition-smooth">
+        <button id="tab-btn-transactions" class="fin-tab-btn px-4 py-2.5 border-b-2 border-blue-600 text-blue-600 flex items-center gap-1.5 transition-smooth whitespace-nowrap">
           ${icons.list || icons.tag} Partidas & Transacciones
         </button>
-        <button id="tab-btn-settlements" class="fin-tab-btn px-4 py-2.5 border-b-2 border-transparent text-slate-500 hover:text-slate-800 flex items-center gap-1.5 transition-smooth">
+        <button id="tab-btn-settlements" class="fin-tab-btn px-4 py-2.5 border-b-2 border-transparent text-slate-500 hover:text-slate-800 flex items-center gap-1.5 transition-smooth whitespace-nowrap">
           ${icons.cash || icons.check} Liquidaciones & Retiros
         </button>
-        <button id="tab-btn-expenses" class="fin-tab-btn px-4 py-2.5 border-b-2 border-transparent text-slate-500 hover:text-slate-800 flex items-center gap-1.5 transition-smooth">
+        <button id="tab-btn-expenses" class="fin-tab-btn px-4 py-2.5 border-b-2 border-transparent text-slate-500 hover:text-slate-800 flex items-center gap-1.5 transition-smooth whitespace-nowrap">
           ${icons.box || icons.tag} Gastos Externos Manuales
         </button>
-        <button id="tab-btn-reconciliation" class="fin-tab-btn px-4 py-2.5 border-b-2 border-transparent text-slate-500 hover:text-slate-800 flex items-center gap-1.5 transition-smooth">
+        <button id="tab-btn-reconciliation" class="fin-tab-btn px-4 py-2.5 border-b-2 border-transparent text-slate-500 hover:text-slate-800 flex items-center gap-1.5 transition-smooth whitespace-nowrap">
           ${icons.shield || icons.alert} Conciliación & Discrepancias
         </button>
-        <button id="tab-btn-reports" class="fin-tab-btn px-4 py-2.5 border-b-2 border-transparent text-slate-500 hover:text-slate-800 flex items-center gap-1.5 transition-smooth">
+        <button id="tab-btn-reports" class="fin-tab-btn px-4 py-2.5 border-b-2 border-transparent text-slate-500 hover:text-slate-800 flex items-center gap-1.5 transition-smooth whitespace-nowrap">
           ${icons.chart} Reportes Financieros
+        </button>
+        <button id="tab-btn-profitability" class="fin-tab-btn px-4 py-2.5 border-b-2 border-transparent text-slate-500 hover:text-slate-800 flex items-center gap-1.5 transition-smooth whitespace-nowrap">
+          ${icons.cash} Rentabilidad (8D)
+        </button>
+        <button id="tab-btn-loss-alerts" class="fin-tab-btn px-4 py-2.5 border-b-2 border-transparent text-slate-500 hover:text-slate-800 flex items-center gap-1.5 transition-smooth whitespace-nowrap">
+          ${icons.alert} Alertas de Pérdida
+        </button>
+        <button id="tab-btn-simulator" class="fin-tab-btn px-4 py-2.5 border-b-2 border-transparent text-slate-500 hover:text-slate-800 flex items-center gap-1.5 transition-smooth whitespace-nowrap">
+          ${icons.tag} Simulador Margen
+        </button>
+        <button id="tab-btn-cost-history" class="fin-tab-btn px-4 py-2.5 border-b-2 border-transparent text-slate-500 hover:text-slate-800 flex items-center gap-1.5 transition-smooth whitespace-nowrap">
+          ${icons.list} Historial Costos (COGS)
+        </button>
+        <button id="tab-btn-fiscal-pac" class="fin-tab-btn px-4 py-2.5 border-b-2 border-transparent text-slate-500 hover:text-slate-800 flex items-center gap-1.5 transition-smooth whitespace-nowrap">
+          ${icons.shield} PAC SAT (CFDI 4.0)
         </button>
       </div>
 
@@ -168,6 +183,11 @@ export async function renderFinances(container) {
       else if (btn.id === "tab-btn-expenses") currentTab = "expenses";
       else if (btn.id === "tab-btn-reconciliation") currentTab = "reconciliation";
       else if (btn.id === "tab-btn-reports") currentTab = "reports";
+      else if (btn.id === "tab-btn-profitability") currentTab = "profitability";
+      else if (btn.id === "tab-btn-loss-alerts") currentTab = "loss_alerts";
+      else if (btn.id === "tab-btn-simulator") currentTab = "simulator";
+      else if (btn.id === "tab-btn-cost-history") currentTab = "cost_history";
+      else if (btn.id === "tab-btn-fiscal-pac") currentTab = "fiscal_pac";
 
       renderCurrentTabContent();
     });
@@ -226,6 +246,16 @@ async function renderCurrentTabContent() {
     await renderReconciliationTab(content);
   } else if (currentTab === "reports") {
     await renderReportsTab(content);
+  } else if (currentTab === "profitability") {
+    await renderProfitabilityTab(content);
+  } else if (currentTab === "loss_alerts") {
+    await renderLossAlertsTab(content);
+  } else if (currentTab === "simulator") {
+    await renderSimulatorTab(content);
+  } else if (currentTab === "cost_history") {
+    await renderCostHistoryTab(content);
+  } else if (currentTab === "fiscal_pac") {
+    await renderFiscalPacTab(content);
   }
 }
 
@@ -1048,4 +1078,884 @@ function debounce(fn, delay) {
     clearTimeout(timer);
     timer = setTimeout(() => fn.apply(this, args), delay);
   };
+}
+
+// ---------------------------------------------------------------------------
+// TAB 6: MOTOR DE RENTABILIDAD MULTIDIMENSIONAL (8 DIMENSIONES)
+// ---------------------------------------------------------------------------
+
+async function renderProfitabilityTab(content) {
+  content.innerHTML = `
+    <div class="space-y-4">
+      <!-- Filtros y Selector de Dimensión -->
+      <div class="p-4 bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
+        <div class="flex flex-wrap items-center gap-2">
+          <div>
+            <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Dimensión Analizada</label>
+            <select id="prof-dimension-select" class="px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 focus:bg-white focus:outline-none">
+              <option value="product">1. Por Producto Maestro</option>
+              <option value="sku" selected>2. Por SKU / Variante</option>
+              <option value="item">3. Por Publicación MeLi (#MLM)</option>
+              <option value="order">4. Por Pedido / Venta</option>
+              <option value="account">5. Por Cuenta Mercado Libre</option>
+              <option value="daily">6. Por Día (Línea de Tiempo)</option>
+              <option value="weekly">7. Por Semana (ISO Semanal)</option>
+              <option value="monthly">8. Por Mes Contable</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Cuenta MeLi</label>
+            <select id="prof-account-select" class="px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl font-medium text-slate-700 focus:bg-white focus:outline-none">
+              <option value="">Todas las cuentas</option>
+              ${accountsCache.map((acc) => `<option value="${acc.id}">${acc.nickname || acc.meli_user_id}</option>`).join("")}
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Fecha Desde</label>
+            <input id="prof-date-from" type="date" class="px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl font-mono text-slate-700 focus:bg-white focus:outline-none" />
+          </div>
+
+          <div>
+            <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Fecha Hasta</label>
+            <input id="prof-date-to" type="date" class="px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl font-mono text-slate-700 focus:bg-white focus:outline-none" />
+          </div>
+        </div>
+
+        <div class="flex items-end gap-2">
+          <button id="btn-run-profit-query" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-smooth shadow-sm flex items-center gap-1.5 touch-target">
+            ${icons.search ? icons.search("w-4 h-4") : ""} Calcular Rentabilidad
+          </button>
+        </div>
+      </div>
+
+      <!-- Resumen de Métricas Agregadas -->
+      <div id="prof-summary-cards" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <div class="p-4 bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
+          <div class="text-[10px] font-bold text-slate-400 uppercase">Facturación Neta Efectiva</div>
+          <div id="prof-sum-net-revenue" class="text-xl font-black text-slate-900 mt-2 font-mono">...</div>
+          <div id="prof-sum-gross-disc" class="text-[10px] text-slate-500 mt-1">Bruto: ... | Dctos: ...</div>
+        </div>
+
+        <div class="p-4 bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
+          <div class="text-[10px] font-bold text-slate-400 uppercase">Costos Directos (COGS + Flete)</div>
+          <div id="prof-sum-cogs-ship" class="text-xl font-black text-amber-700 mt-2 font-mono">...</div>
+          <div id="prof-sum-cogs-detail" class="text-[10px] text-slate-500 mt-1">COGS: ... | Fletes: ...</div>
+        </div>
+
+        <div class="p-4 bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
+          <div class="text-[10px] font-bold text-slate-400 uppercase">Comisiones & Retenciones SAT</div>
+          <div id="prof-sum-fees-tax" class="text-xl font-black text-purple-700 mt-2 font-mono">...</div>
+          <div id="prof-sum-fees-detail" class="text-[10px] text-slate-500 mt-1">MeLi: ... | SAT (IVA/ISR): ...</div>
+        </div>
+
+        <div class="p-4 bg-emerald-50 rounded-2xl border border-emerald-200 shadow-sm flex flex-col justify-between">
+          <div class="text-[10px] font-bold text-emerald-800 uppercase flex items-center justify-between">
+            <span>Utilidad Neta & Margen</span>
+            <span id="prof-sum-margin-badge" class="px-2 py-0.5 bg-emerald-200 text-emerald-900 rounded-full font-mono text-[10px]">0.0%</span>
+          </div>
+          <div id="prof-sum-net-profit" class="text-xl font-black text-emerald-800 mt-2 font-mono">...</div>
+          <div id="prof-sum-profit-status" class="text-[10px] text-emerald-700 mt-1 font-semibold">Estado de costos: ...</div>
+        </div>
+      </div>
+
+      <!-- Diferenciación Explícita de Costos (Real vs Estimado vs Pendiente) -->
+      <div class="p-4 bg-slate-50 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+        <div class="font-bold text-slate-700">Diferenciación de Costos del Periodo:</div>
+        <div class="flex items-center gap-4 font-mono">
+          <div class="flex items-center gap-1.5 text-blue-700">
+            <span class="w-2.5 h-2.5 rounded-full bg-blue-600"></span>
+            <span>Real (Auditado/Liquidado): <strong id="cost-status-real">$0.00</strong></span>
+          </div>
+          <div class="flex items-center gap-1.5 text-amber-700">
+            <span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
+            <span>Pendiente (Devengado MeLi): <strong id="cost-status-pending">$0.00</strong></span>
+          </div>
+          <div class="flex items-center gap-1.5 text-slate-500">
+            <span class="w-2.5 h-2.5 rounded-full bg-slate-400"></span>
+            <span>Estimado (Proyectado): <strong id="cost-status-estimated">$0.00</strong></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tabla Contable de 13 Conceptos -->
+      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse">
+            <thead>
+              <tr class="bg-slate-50 border-b border-slate-200 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                <th class="p-3">Dimensión</th>
+                <th class="p-3 text-right">Unidades</th>
+                <th class="p-3 text-right">PVP Prom</th>
+                <th class="p-3 text-right">Ingreso Bruto</th>
+                <th class="p-3 text-right">Descuentos</th>
+                <th class="p-3 text-right">Comisión MeLi</th>
+                <th class="p-3 text-right">Cargo &lt;$299</th>
+                <th class="p-3 text-right">Flete</th>
+                <th class="p-3 text-right">COGS</th>
+                <th class="p-3 text-right">Operativos</th>
+                <th class="p-3 text-right">SAT (IVA/ISR)</th>
+                <th class="p-3 text-right">Ganancia Neta</th>
+                <th class="p-3 text-right">Margen %</th>
+                <th class="p-3 text-center">Estado</th>
+              </tr>
+            </thead>
+            <tbody id="prof-table-body" class="divide-y divide-slate-100 text-xs">
+              <tr><td colspan="14" class="p-8 text-center text-slate-400">Cargando reporte de rentabilidad...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.getElementById("btn-run-profit-query")?.addEventListener("click", loadProfitabilityReport);
+  document.getElementById("prof-dimension-select")?.addEventListener("change", loadProfitabilityReport);
+
+  await loadProfitabilityReport();
+}
+
+async function loadProfitabilityReport() {
+  const dim = document.getElementById("prof-dimension-select")?.value || "sku";
+  const accountId = document.getElementById("prof-account-select")?.value || "";
+  const dateFrom = document.getElementById("prof-date-from")?.value || "";
+  const dateTo = document.getElementById("prof-date-to")?.value || "";
+
+  const params = { dimension: dim };
+  if (accountId) params.meli_account_id = accountId;
+  if (dateFrom) params.date_from = dateFrom;
+  if (dateTo) params.date_to = dateTo;
+
+  const tbody = document.getElementById("prof-table-body");
+  if (!tbody) return;
+
+  try {
+    const rep = await api.get("/profitability/reports", { params });
+
+    // Actualizar Tarjetas Resumen
+    document.getElementById("prof-sum-net-revenue").textContent = `$${rep.total_net_revenue.toLocaleString("es-MX", { minimumFractionDigits: 2 })} MXN`;
+    document.getElementById("prof-sum-gross-disc").textContent = `Bruto: $${rep.total_gross_revenue.toFixed(2)} | Dctos: -$${rep.total_discounts.toFixed(2)}`;
+    document.getElementById("prof-sum-cogs-ship").textContent = `$${(rep.total_cogs + rep.total_shipping).toLocaleString("es-MX", { minimumFractionDigits: 2 })} MXN`;
+    document.getElementById("prof-sum-cogs-detail").textContent = `COGS: $${rep.total_cogs.toFixed(2)} | Fletes: $${rep.total_shipping.toFixed(2)}`;
+    document.getElementById("prof-sum-fees-tax").textContent = `$${(rep.total_commissions + rep.total_fixed_charges + rep.total_taxes).toLocaleString("es-MX", { minimumFractionDigits: 2 })} MXN`;
+    document.getElementById("prof-sum-fees-detail").textContent = `MeLi: $${(rep.total_commissions + rep.total_fixed_charges).toFixed(2)} | SAT: $${rep.total_taxes.toFixed(2)}`;
+    document.getElementById("prof-sum-net-profit").textContent = `$${rep.total_net_profit.toLocaleString("es-MX", { minimumFractionDigits: 2 })} MXN`;
+    document.getElementById("prof-sum-margin-badge").textContent = `${rep.overall_margin_pct.toFixed(1)}%`;
+
+    // Diferenciación de costos
+    if (rep.cost_status_summary) {
+      document.getElementById("cost-status-real").textContent = `$${rep.cost_status_summary.real.toFixed(2)}`;
+      document.getElementById("cost-status-pending").textContent = `$${rep.cost_status_summary.pending.toFixed(2)}`;
+      document.getElementById("cost-status-estimated").textContent = `$${rep.cost_status_summary.estimated.toFixed(2)}`;
+    }
+
+    if (!rep.items || rep.items.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="14" class="p-8 text-center text-slate-400 font-sans">No se encontraron movimientos contables para esta dimensión y rango de fechas.</td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = rep.items.map((it) => {
+      const isLoss = it.is_loss || it.net_profit < 0;
+      const profitClass = isLoss ? "text-rose-700 font-bold" : "text-emerald-700 font-bold";
+      const marginBadge = isLoss
+        ? `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800">${it.margin_pct.toFixed(1)}%</span>`
+        : `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">${it.margin_pct.toFixed(1)}%</span>`;
+
+      return `
+        <tr class="hover:bg-slate-50 transition-colors ${isLoss ? "bg-rose-50/30" : ""}">
+          <td class="p-3">
+            <div class="font-bold text-slate-900">${it.dimension_name}</div>
+            <div class="text-[10px] text-slate-400 font-mono">${it.dimension_id}</div>
+          </td>
+          <td class="p-3 text-right font-mono font-semibold text-slate-700">${it.units_sold}</td>
+          <td class="p-3 text-right font-mono text-slate-700">$${it.sale_price_avg.toFixed(2)}</td>
+          <td class="p-3 text-right font-mono font-bold text-slate-900">$${it.gross_revenue.toFixed(2)}</td>
+          <td class="p-3 text-right font-mono text-slate-500">${it.discounts > 0 ? `-$${it.discounts.toFixed(2)}` : "$0.00"}</td>
+          <td class="p-3 text-right font-mono text-amber-700">-$${it.commissions.toFixed(2)}</td>
+          <td class="p-3 text-right font-mono ${it.fixed_charges > 0 ? "text-rose-600 font-bold" : "text-slate-400"}">${it.fixed_charges > 0 ? `-$${it.fixed_charges.toFixed(2)}` : "$0.00"}</td>
+          <td class="p-3 text-right font-mono text-slate-600">-$${it.shipping_costs.toFixed(2)}</td>
+          <td class="p-3 text-right font-mono text-slate-800 font-semibold">$${it.cogs_total.toFixed(2)}</td>
+          <td class="p-3 text-right font-mono text-slate-500">-$${it.operational_expenses.toFixed(2)}</td>
+          <td class="p-3 text-right font-mono text-purple-700">-$${it.applicable_taxes.toFixed(2)}</td>
+          <td class="p-3 text-right font-mono ${profitClass}">$${it.net_profit.toFixed(2)}</td>
+          <td class="p-3 text-right">${marginBadge}</td>
+          <td class="p-3 text-center">
+            ${isLoss ? `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-600 text-white animate-pulse">PÉRDIDA</span>` : `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700">OK</span>`}
+          </td>
+        </tr>
+      `;
+    }).join("");
+  } catch (err) {
+    showToast("Error al cargar reporte de rentabilidad", "error");
+  }
+}
+
+// ---------------------------------------------------------------------------
+// TAB 7: ALERTAS DE PRODUCTOS EN PÉRDIDA Y ANÁLISIS DE CAUSA RAÍZ
+// ---------------------------------------------------------------------------
+
+async function renderLossAlertsTab(content) {
+  content.innerHTML = `
+    <div class="space-y-4">
+      <!-- Acciones de Detección -->
+      <div class="p-4 bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <div>
+          <h2 class="text-sm font-bold text-slate-900 flex items-center gap-2">
+            ${icons.alert ? icons.alert("w-4 h-4 text-rose-600") : ""} Auditoría Financiera de Pérdidas & Margen Crítico
+          </h2>
+          <p class="text-xs text-slate-500 mt-0.5">
+            Diagnostica productos donde el cargo fijo de $25 MXN (PVP &lt; $299), fletes altos o COGS generan rentabilidad negativa.
+          </p>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <select id="loss-alert-status-filter" class="px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700">
+            <option value="active">Alertas Activas</option>
+            <option value="resolved">Resueltas</option>
+            <option value="all">Todas</option>
+          </select>
+          <button id="btn-sync-loss-alerts" class="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition-smooth shadow-sm flex items-center gap-1.5 touch-target">
+            ${icons.refresh ? icons.refresh("w-4 h-4") : ""} Sincronizar & Detectar
+          </button>
+        </div>
+      </div>
+
+      <!-- Contenedor de Tarjetas de Alerta -->
+      <div id="loss-alerts-grid" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="p-8 text-center text-slate-400 bg-white rounded-2xl border border-slate-200 col-span-2">
+          Cargando alertas financieras...
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.getElementById("btn-sync-loss-alerts")?.addEventListener("click", async () => {
+    showToast("Ejecutando motor de detección de pérdidas y causa raíz...", "info");
+    try {
+      const res = await api.post("/profitability/alerts/sync");
+      showToast(`Auditoría completada: ${res.length} alertas identificadas.`, "success");
+      await loadLossAlerts();
+    } catch (err) {
+      showToast("Error al sincronizar alertas de pérdida", "error");
+    }
+  });
+
+  document.getElementById("loss-alert-status-filter")?.addEventListener("change", loadLossAlerts);
+
+  await loadLossAlerts();
+}
+
+async function loadLossAlerts() {
+  const statusFilter = document.getElementById("loss-alert-status-filter")?.value || "active";
+  const grid = document.getElementById("loss-alerts-grid");
+  if (!grid) return;
+
+  try {
+    const alerts = await api.get("/profitability/alerts", { params: { status_filter: statusFilter } });
+    if (!alerts || alerts.length === 0) {
+      grid.innerHTML = `
+        <div class="p-8 text-center text-slate-400 bg-white rounded-2xl border border-slate-200 col-span-2">
+          ¡Excelente! No hay alertas de pérdidas para este filtro. Todo el catálogo opera con margen saludable.
+        </div>
+      `;
+      return;
+    }
+
+    grid.innerHTML = alerts.map((a) => {
+      const isCritical = a.severity === "critical";
+      const cardBorder = isCritical ? "border-rose-300 bg-rose-50/20" : "border-amber-300 bg-amber-50/20";
+      const badgeColor = isCritical ? "bg-rose-600 text-white" : "bg-amber-500 text-white";
+
+      return `
+        <div class="p-5 rounded-2xl border ${cardBorder} shadow-sm bg-white flex flex-col justify-between space-y-3">
+          <div class="flex items-start justify-between gap-2">
+            <div>
+              <span class="inline-flex px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${badgeColor}">
+                ${a.alert_type.toUpperCase()} • ${a.severity.toUpperCase()}
+              </span>
+              <h3 class="font-black text-slate-900 text-sm mt-1.5">${a.sku}</h3>
+              <div class="text-xs text-slate-500 font-mono">Margen: ${a.current_margin_pct.toFixed(2)}% | Pérdida: -$${Math.abs(a.net_profit).toFixed(2)} MXN</div>
+            </div>
+            <div class="text-right">
+              ${a.recommended_price ? `<div class="text-[10px] text-slate-400 font-bold uppercase">PVP Sugerido</div><div class="text-sm font-black text-emerald-700 font-mono">$${a.recommended_price.toFixed(2)}</div>` : ""}
+            </div>
+          </div>
+
+          <div class="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs space-y-1.5">
+            <div class="font-bold text-slate-800 flex items-center gap-1.5">
+              ${icons.alert ? icons.alert("w-3.5 h-3.5 text-rose-600") : ""} Causa Raíz Detectada:
+            </div>
+            <p class="text-slate-600 leading-relaxed text-[11px]">${a.root_cause_analysis}</p>
+          </div>
+
+          <div class="p-3 bg-blue-50/50 rounded-xl border border-blue-100 text-xs space-y-1">
+            <div class="font-bold text-blue-900 flex items-center gap-1.5">
+              ${icons.check ? icons.check("w-3.5 h-3.5 text-blue-600") : ""} Acción Comercial Sugerida:
+            </div>
+            <p class="text-blue-800 leading-relaxed text-[11px]">${a.recommended_action}</p>
+          </div>
+
+          <div class="flex items-center justify-between pt-2 border-t border-slate-100 text-xs">
+            <span class="text-slate-400 text-[10px] font-mono">Detectada: ${new Date(a.detected_at).toLocaleDateString("es-MX")}</span>
+            ${a.status === "active" ? `
+              <button onclick="resolveLossAlertModal('${a.id}')" class="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold transition-smooth">
+                Resolver Alerta
+              </button>
+            ` : `
+              <span class="text-emerald-700 font-bold text-[11px] flex items-center gap-1">
+                ${icons.check ? icons.check("w-3.5 h-3.5") : ""} Resuelta: ${a.resolution_notes || "Sin nota"}
+              </span>
+            `}
+          </div>
+        </div>
+      `;
+    }).join("");
+  } catch (err) {
+    showToast("Error al consultar alertas", "error");
+  }
+}
+
+window.resolveLossAlertModal = function (alertId) {
+  const content = `
+    <div class="space-y-3 text-xs">
+      <p class="text-slate-600">
+        Indique la estrategia comercial aplicada para eliminar la pérdida de este producto:
+      </p>
+      <div>
+        <label class="block font-bold text-slate-700 mb-1">Notas de Resolución *</label>
+        <textarea id="loss-res-notes" rows="3" required placeholder="Ej. Se elevó el precio a $299 MXN para eliminar el cargo fijo de $25 MXN y se armó paquete dual..." class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none"></textarea>
+      </div>
+    </div>
+  `;
+
+  openModal({
+    title: "Resolver Alerta de Pérdida Financiera",
+    content,
+    confirmText: "Registrar Resolución",
+    size: "sm",
+    onConfirm: async () => {
+      const notes = document.getElementById("loss-res-notes")?.value.trim();
+      if (!notes) {
+        showToast("Las notas de resolución son requeridas.", "warning");
+        return;
+      }
+
+      try {
+        await api.post(`/profitability/alerts/${alertId}/resolve`, {
+          status: "resolved",
+          resolution_notes: notes,
+        });
+
+        showToast("Alerta resuelta exitosamente.", "success");
+        closeModal();
+        await loadLossAlerts();
+      } catch (err) {
+        showToast("Error al resolver alerta", "error");
+      }
+    },
+  });
+};
+
+// ---------------------------------------------------------------------------
+// TAB 8: SIMULADOR DE PRECIOS PARA MARGEN OBJETIVO
+// ---------------------------------------------------------------------------
+
+async function renderSimulatorTab(content) {
+  content.innerHTML = `
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <!-- Formulario de Parámetros de Entrada -->
+      <div class="lg:col-span-5 p-5 bg-white rounded-2xl border border-slate-200 shadow-sm space-y-4">
+        <div>
+          <h2 class="text-sm font-black text-slate-900 flex items-center gap-2">
+            ${icons.tag ? icons.tag("w-4 h-4 text-blue-600") : ""} Simulador Inverso de Precios
+          </h2>
+          <p class="text-xs text-slate-500 mt-0.5">
+            Calcula algebraicamente el precio de venta exacto requerido para lograr el margen neto deseado, considerando saltos discontinuos ($25 si &lt; $299) y SAT.
+          </p>
+        </div>
+
+        <form id="sim-form" class="space-y-3 text-xs">
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Costo Unitario de Adquisición (COGS) *</label>
+            <input id="sim-cogs" type="number" step="0.01" min="1" required value="250.00" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono font-bold text-slate-900 focus:bg-white focus:outline-none" />
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block font-bold text-slate-700 mb-1">Margen Neto Objetivo (%) *</label>
+              <input id="sim-target-margin" type="number" step="0.5" min="1" max="90" required value="20.0" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono font-bold text-emerald-700 focus:bg-white focus:outline-none" />
+            </div>
+            <div>
+              <label class="block font-bold text-slate-700 mb-1">Comisión MeLi (%)</label>
+              <input id="sim-commission" type="number" step="0.5" min="0" max="40" required value="15.0" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono focus:bg-white focus:outline-none" />
+            </div>
+          </div>
+
+          <div class="grid grid-cols-3 gap-3">
+            <div>
+              <label class="block font-bold text-slate-700 mb-1">Flete Vendedor ($)</label>
+              <input id="sim-shipping" type="number" step="0.01" min="0" required value="85.00" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono focus:bg-white focus:outline-none" />
+            </div>
+            <div>
+              <label class="block font-bold text-slate-700 mb-1">Empaque ($)</label>
+              <input id="sim-packaging" type="number" step="0.01" min="0" required value="15.00" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono focus:bg-white focus:outline-none" />
+            </div>
+            <div>
+              <label class="block font-bold text-slate-700 mb-1">Manipulación ($)</label>
+              <input id="sim-handling" type="number" step="0.01" min="0" required value="10.00" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono focus:bg-white focus:outline-none" />
+            </div>
+          </div>
+
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Régimen Fiscal SAT México *</label>
+            <select id="sim-tax-regime" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 focus:bg-white focus:outline-none">
+              <option value="persona_fisica_con_rfc">Persona Física con RFC (9% Retención: 8% IVA + 1% ISR)</option>
+              <option value="persona_moral_con_rfc">Persona Moral con RFC (0% Retención por plataforma)</option>
+              <option value="sin_rfc">Sin RFC (Sanción SAT del 36%: 16% IVA + 20% ISR)</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Descuento Promocional ofrecido (%)</label>
+            <input id="sim-discount" type="number" step="0.5" min="0" max="50" value="0.0" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono focus:bg-white focus:outline-none" />
+          </div>
+
+          <button type="submit" class="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold transition-smooth shadow-sm flex items-center justify-center gap-2 touch-target mt-2">
+            ${icons.search ? icons.search("w-4 h-4") : ""} Calcular Precio Objetivo
+          </button>
+        </form>
+      </div>
+
+      <!-- Resultados y Desglose Matemático -->
+      <div class="lg:col-span-7 space-y-4">
+        <div id="sim-result-card" class="p-6 bg-white rounded-2xl border border-slate-200 shadow-sm space-y-5">
+          <div class="flex items-center justify-between border-b border-slate-100 pb-4">
+            <div>
+              <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Precio Sugerido de Venta (PVP)</div>
+              <div id="sim-res-price" class="text-3xl font-black text-slate-900 font-mono mt-1">$0.00 MXN</div>
+            </div>
+            <div class="text-right">
+              <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Margen Logrado</div>
+              <div id="sim-res-margin" class="text-2xl font-black text-emerald-700 font-mono mt-1">0.0%</div>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+            <div class="p-3 bg-slate-50 rounded-xl">
+              <div class="text-[10px] text-slate-400 uppercase font-bold">Ganancia Neta</div>
+              <div id="sim-res-profit" class="font-mono font-black text-emerald-700 mt-1">$0.00</div>
+            </div>
+            <div class="p-3 bg-slate-50 rounded-xl">
+              <div class="text-[10px] text-slate-400 uppercase font-bold">Comisión MeLi</div>
+              <div id="sim-res-comm" class="font-mono font-bold text-amber-700 mt-1">$0.00</div>
+            </div>
+            <div class="p-3 bg-slate-50 rounded-xl">
+              <div class="text-[10px] text-slate-400 uppercase font-bold">Cargo &lt;$299</div>
+              <div id="sim-res-fixed" class="font-mono font-bold text-rose-600 mt-1">$0.00</div>
+            </div>
+            <div class="p-3 bg-slate-50 rounded-xl">
+              <div class="text-[10px] text-slate-400 uppercase font-bold">Retención SAT</div>
+              <div id="sim-res-taxes" class="font-mono font-bold text-purple-700 mt-1">$0.00</div>
+            </div>
+          </div>
+
+          <div class="p-4 bg-emerald-50 rounded-xl border border-emerald-100 text-xs space-y-1">
+            <div class="font-bold text-emerald-900 flex items-center justify-between">
+              <span>Punto de Equilibrio (Break-Even Price):</span>
+              <strong id="sim-res-breakeven" class="font-mono text-emerald-800">$0.00 MXN</strong>
+            </div>
+            <p class="text-emerald-700 text-[11px]">
+              Precio mínimo para cubrir todos los costos y comisiones con margen 0.0%. Vender por debajo de este valor genera pérdida directa.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.getElementById("sim-form")?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const cogs = parseFloat(document.getElementById("sim-cogs").value);
+    const targetMargin = parseFloat(document.getElementById("sim-target-margin").value);
+    const comm = parseFloat(document.getElementById("sim-commission").value) / 100.0;
+    const ship = parseFloat(document.getElementById("sim-shipping").value);
+    const pack = parseFloat(document.getElementById("sim-packaging").value);
+    const hand = parseFloat(document.getElementById("sim-handling").value);
+    const regime = document.getElementById("sim-tax-regime").value;
+    const disc = parseFloat(document.getElementById("sim-discount").value) / 100.0;
+
+    try {
+      const res = await api.post("/profitability/simulator/target-margin", {
+        cogs,
+        target_margin_pct: targetMargin,
+        commission_rate: comm,
+        shipping_cost: ship,
+        packaging_cost: pack,
+        handling_cost: hand,
+        tax_regime: regime,
+        discount_pct: disc,
+      });
+
+      document.getElementById("sim-res-price").textContent = `$${res.suggested_price.toFixed(2)} MXN`;
+      document.getElementById("sim-res-margin").textContent = `${res.achieved_margin_pct.toFixed(2)}%`;
+      document.getElementById("sim-res-profit").textContent = `$${res.net_profit.toFixed(2)}`;
+      document.getElementById("sim-res-comm").textContent = `$${res.marketplace_fee.toFixed(2)}`;
+      document.getElementById("sim-res-fixed").textContent = `$${res.fixed_fee.toFixed(2)}`;
+      document.getElementById("sim-res-taxes").textContent = `$${res.total_taxes.toFixed(2)}`;
+      document.getElementById("sim-res-breakeven").textContent = `$${res.break_even_price.toFixed(2)} MXN`;
+    } catch (err) {
+      showToast("Error ejecutando simulación de margen", "error");
+    }
+  });
+
+  // Ejecutar primera simulación automática
+  document.getElementById("sim-form")?.dispatchEvent(new Event("submit"));
+}
+
+// ---------------------------------------------------------------------------
+// TAB 9: HISTORIAL INMUTABLE DE COSTOS (COGS)
+// ---------------------------------------------------------------------------
+
+async function renderCostHistoryTab(content) {
+  content.innerHTML = `
+    <div class="space-y-4">
+      <div class="p-4 bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <div>
+          <h2 class="text-sm font-bold text-slate-900 flex items-center gap-2">
+            ${icons.list ? icons.list("w-4 h-4 text-blue-600") : ""} Trazabilidad e Historial Inmutable de Costos (COGS)
+          </h2>
+          <p class="text-xs text-slate-500 mt-0.5">
+            Conserva el histórico de cada variación de costo con motivo justificado, permitiendo auditoría retroactiva de ganancias por fecha de venta.
+          </p>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <input id="cost-hist-sku-filter" type="text" placeholder="Filtrar por SKU..." class="px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none" />
+          <button id="btn-add-cost-record" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-smooth shadow-sm flex items-center gap-1.5 touch-target">
+            ${icons.plus ? icons.plus("w-4 h-4") : ""} Registrar Cambio de Costo
+          </button>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse">
+            <thead>
+              <tr class="bg-slate-50 border-b border-slate-200 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                <th class="p-3">Fecha & Vigencia</th>
+                <th class="p-3">SKU</th>
+                <th class="p-3 text-right">Costo Anterior</th>
+                <th class="p-3 text-right">Nuevo Costo</th>
+                <th class="p-3 text-right">Variación (%)</th>
+                <th class="p-3">Motivo del Cambio</th>
+                <th class="p-3">Notas de Auditoría</th>
+              </tr>
+            </thead>
+            <tbody id="cost-hist-table-body" class="divide-y divide-slate-100 text-xs">
+              <tr><td colspan="7" class="p-6 text-center text-slate-400">Cargando historial de costos...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.getElementById("btn-add-cost-record")?.addEventListener("click", openAddCostRecordModal);
+  document.getElementById("cost-hist-sku-filter")?.addEventListener("input", debounce(loadCostHistory, 300));
+
+  await loadCostHistory();
+}
+
+async function loadCostHistory() {
+  const sku = document.getElementById("cost-hist-sku-filter")?.value.trim() || "";
+  const tbody = document.getElementById("cost-hist-table-body");
+  if (!tbody) return;
+
+  const params = {};
+  if (sku) params.sku = sku;
+
+  try {
+    const list = await api.get("/profitability/costs/history", { params });
+    if (!list || list.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="7" class="p-8 text-center text-slate-400">No hay registros de cambios de costo en el historial.</td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = list.map((c) => {
+      const varPct = c.previous_cogs > 0 ? (((c.new_cogs - c.previous_cogs) / c.previous_cogs) * 100.0).toFixed(1) : "0.0";
+      const varColor = parseFloat(varPct) > 0 ? "text-rose-600 font-bold" : "text-emerald-600 font-bold";
+
+      return `
+        <tr class="hover:bg-slate-50 transition-colors">
+          <td class="p-3">
+            <div class="font-bold text-slate-900">${new Date(c.effective_from).toLocaleDateString("es-MX")}</div>
+            <div class="text-[10px] text-slate-400 font-mono">${new Date(c.created_at).toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" })}</div>
+          </td>
+          <td class="p-3 font-mono font-bold text-slate-800">${c.sku}</td>
+          <td class="p-3 text-right font-mono text-slate-500">$${c.previous_cogs.toFixed(2)}</td>
+          <td class="p-3 text-right font-mono font-black text-slate-900">$${c.new_cogs.toFixed(2)}</td>
+          <td class="p-3 text-right font-mono ${varColor}">${parseFloat(varPct) > 0 ? `+${varPct}%` : `${varPct}%`}</td>
+          <td class="p-3">
+            <span class="inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700">
+              ${c.change_reason}
+            </span>
+          </td>
+          <td class="p-3 text-slate-600 text-[11px]">${c.notes || "Sin observaciones"}</td>
+        </tr>
+      `;
+    }).join("");
+  } catch (err) {
+    showToast("Error al cargar historial de costos", "error");
+  }
+}
+
+function openAddCostRecordModal() {
+  const content = `
+    <form id="form-add-cost" class="space-y-3 text-xs">
+      <div>
+        <label class="block font-bold text-slate-700 mb-1">SKU del Producto *</label>
+        <input id="add-cost-sku" type="text" required placeholder="Ej. SMART-GPS-BLK" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono focus:bg-white focus:outline-none" />
+      </div>
+
+      <div>
+        <label class="block font-bold text-slate-700 mb-1">Nuevo Costo de Adquisición (COGS) *</label>
+        <input id="add-cost-value" type="number" step="0.01" min="0.01" required placeholder="0.00" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono font-bold text-slate-900 focus:bg-white focus:outline-none" />
+      </div>
+
+      <div>
+        <label class="block font-bold text-slate-700 mb-1">Motivo Obligatorio del Cambio *</label>
+        <select id="add-cost-reason" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800">
+          <option value="supplier_increase">Incremento de Proveedor</option>
+          <option value="purchase_order">Nueva Orden de Compra (Lote)</option>
+          <option value="currency_devaluation">Ajuste Cambiario (USD / MXN)</option>
+          <option value="manufacturing_cost">Variación en Costo de Fabricación</option>
+          <option value="audit_adjustment">Ajuste de Auditoría Interna</option>
+        </select>
+      </div>
+
+      <div>
+        <label class="block font-bold text-slate-700 mb-1">Notas Explicativas / Factura Proveedor</label>
+        <textarea id="add-cost-notes" rows="2" placeholder="Detalles de la compra o número de factura..." class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none"></textarea>
+      </div>
+    </form>
+  `;
+
+  openModal({
+    title: "Registrar Cambio Inmutable de Costo COGS",
+    content,
+    confirmText: "Registrar Costo",
+    size: "sm",
+    onConfirm: async () => {
+      const sku = document.getElementById("add-cost-sku")?.value.trim();
+      const newCogs = parseFloat(document.getElementById("add-cost-value")?.value);
+      const reason = document.getElementById("add-cost-reason")?.value;
+      const notes = document.getElementById("add-cost-notes")?.value.trim();
+
+      if (!sku || isNaN(newCogs) || !reason) {
+        showToast("Complete los campos requeridos.", "warning");
+        return;
+      }
+
+      try {
+        await api.post("/profitability/costs/history", {
+          sku,
+          new_cogs: newCogs,
+          change_reason: reason,
+          notes,
+        });
+
+        showToast("Costo registrado exitosamente.", "success");
+        closeModal();
+        await loadCostHistory();
+      } catch (err) {
+        showToast("Error al registrar costo", "error");
+      }
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// TAB 10: INTEGRACIÓN FISCAL MEXICANA (PAC / CFDI 4.0 / SAT)
+// ---------------------------------------------------------------------------
+
+async function renderFiscalPacTab(content) {
+  content.innerHTML = `
+    <div class="space-y-6">
+      <!-- Configuración del PAC SAT -->
+      <div class="p-5 bg-white rounded-2xl border border-slate-200 shadow-sm space-y-4">
+        <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+          <div>
+            <h2 class="text-sm font-black text-slate-900 flex items-center gap-2">
+              ${icons.shield ? icons.shield("w-4 h-4 text-purple-600") : ""} Conector de Proveedor Autorizado de Certificación (PAC SAT)
+            </h2>
+            <p class="text-xs text-slate-500 mt-0.5">
+              Preparado para Facturapi, Finkok o SW Sapience. Emisión y timbrado oficial de CFDI 4.0 con retenciones MeLi (IVA 8% + ISR 1%).
+            </p>
+          </div>
+          <button id="btn-save-pac-config" class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold transition-smooth shadow-sm">
+            Guardar Configuración PAC
+          </button>
+        </div>
+
+        <form id="pac-config-form" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-xs">
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Proveedor PAC Autorizado *</label>
+            <select id="pac-provider" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-bold">
+              <option value="facturapi">Facturapi (API CFDI 4.0)</option>
+              <option value="finkok">Finkok PAC</option>
+              <option value="sw_sapience">SW Sapience</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Entorno de Timbrado *</label>
+            <select id="pac-env" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-bold">
+              <option value="sandbox">Sandbox (Pruebas SAT)</option>
+              <option value="production">Producción (Fiscal Real)</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Clave API Secreta PAC *</label>
+            <input id="pac-key" type="password" placeholder="sk_test_..." class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono focus:bg-white focus:outline-none" />
+          </div>
+
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">RFC Emisor Oficial *</label>
+            <input id="pac-rfc" type="text" placeholder="AAA010101AAA" maxlength="13" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono uppercase focus:bg-white focus:outline-none" />
+          </div>
+
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Razón Social Emisor *</label>
+            <input id="pac-razon" type="text" placeholder="Mi Empresa S.A. de C.V." class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none" />
+          </div>
+
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Régimen Fiscal SAT *</label>
+            <select id="pac-regimen" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-bold">
+              <option value="601">601 - General de Ley Personas Morales</option>
+              <option value="612">612 - Personas Físicas con Actividades Empresariales</option>
+              <option value="626">626 - Régimen Simplificado de Confianza (RESICO)</option>
+              <option value="625">625 - Régimen de las Actividades Empresariales con Plataformas Tecnológicas</option>
+            </select>
+          </div>
+        </form>
+      </div>
+
+      <!-- Facturas Timbradas -->
+      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div class="p-4 border-b border-slate-100 flex items-center justify-between">
+          <h3 class="font-black text-slate-900 text-sm">Registro de Facturas Timbradas (CFDI 4.0)</h3>
+          <span class="text-xs text-slate-400 font-mono">Retenciones SAT Oficiales</span>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse">
+            <thead>
+              <tr class="bg-slate-50 border-b border-slate-200 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                <th class="p-3">Fecha & Folio</th>
+                <th class="p-3">UUID Fiscal SAT</th>
+                <th class="p-3">Receptor</th>
+                <th class="p-3 text-right">Subtotal</th>
+                <th class="p-3 text-right">Retención IVA (8%)</th>
+                <th class="p-3 text-right">Retención ISR (1%)</th>
+                <th class="p-3 text-right">Total Factura</th>
+                <th class="p-3 text-center">Estatus</th>
+              </tr>
+            </thead>
+            <tbody id="fiscal-invoices-body" class="divide-y divide-slate-100 text-xs">
+              <tr><td colspan="8" class="p-6 text-center text-slate-400">Cargando facturas fiscales...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.getElementById("btn-save-pac-config")?.addEventListener("click", savePacConfig);
+
+  await loadPacConfig();
+  await loadFiscalInvoices();
+}
+
+async function loadPacConfig() {
+  try {
+    const cfg = await api.get("/profitability/fiscal/config");
+    if (cfg) {
+      document.getElementById("pac-provider").value = cfg.pac_provider || "facturapi";
+      document.getElementById("pac-env").value = cfg.environment || "sandbox";
+      document.getElementById("pac-rfc").value = cfg.rfc_emisor || "";
+      document.getElementById("pac-razon").value = cfg.razon_social || "";
+      document.getElementById("pac-regimen").value = cfg.regimen_fiscal_sat || "626";
+    }
+  } catch (err) {
+    // Configuración inicial no creada
+  }
+}
+
+async function savePacConfig() {
+  const provider = document.getElementById("pac-provider")?.value;
+  const env = document.getElementById("pac-env")?.value;
+  const apiKey = document.getElementById("pac-key")?.value.trim();
+  const rfc = document.getElementById("pac-rfc")?.value.trim();
+  const razon = document.getElementById("pac-razon")?.value.trim();
+  const regimen = document.getElementById("pac-regimen")?.value;
+
+  if (!rfc || !razon) {
+    showToast("RFC y Razón Social son requeridos.", "warning");
+    return;
+  }
+
+  try {
+    await api.post("/profitability/fiscal/config", {
+      pac_provider: provider,
+      environment: env,
+      api_key: apiKey || "sandbox_test_key",
+      rfc_emisor: rfc,
+      razon_social: razon,
+      regimen_fiscal_sat: regimen,
+    });
+
+    showToast("Configuración fiscal PAC guardada exitosamente.", "success");
+  } catch (err) {
+    showToast("Error al guardar configuración PAC", "error");
+  }
+}
+
+async function loadFiscalInvoices() {
+  const tbody = document.getElementById("fiscal-invoices-body");
+  if (!tbody) return;
+
+  try {
+    const invoices = await api.get("/profitability/fiscal/invoices");
+    if (!invoices || invoices.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="8" class="p-8 text-center text-slate-400">No hay comprobantes fiscales timbrados todavía.</td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = invoices.map((inv) => `
+      <tr class="hover:bg-slate-50 transition-colors">
+        <td class="p-3">
+          <div class="font-bold text-slate-900">${new Date(inv.date_stamped || inv.created_at).toLocaleDateString("es-MX")}</div>
+          <div class="text-[10px] text-slate-400 font-mono">${inv.invoice_series || "F"}-${inv.invoice_number || "1"}</div>
+        </td>
+        <td class="p-3 font-mono text-[11px] text-slate-700">${inv.uuid_sat || "PENDIENTE"}</td>
+        <td class="p-3">
+          <div class="font-bold text-slate-900">${inv.razon_social_receptor || "PÚBLICO EN GENERAL"}</div>
+          <div class="text-[10px] text-slate-400 font-mono">${inv.rfc_receptor}</div>
+        </td>
+        <td class="p-3 text-right font-mono text-slate-700">$${inv.subtotal.toFixed(2)}</td>
+        <td class="p-3 text-right font-mono text-purple-700">-$${inv.iva_retention.toFixed(2)}</td>
+        <td class="p-3 text-right font-mono text-purple-700">-$${inv.isr_retention.toFixed(2)}</td>
+        <td class="p-3 text-right font-mono font-black text-slate-900">$${inv.total.toFixed(2)}</td>
+        <td class="p-3 text-center">
+          <span class="inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 uppercase">
+            ${inv.status}
+          </span>
+        </td>
+      </tr>
+    `).join("");
+  } catch (err) {
+    showToast("Error al cargar facturas fiscales", "error");
+  }
 }
