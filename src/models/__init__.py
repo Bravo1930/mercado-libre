@@ -40,6 +40,7 @@ from src.models.supplier import (
 from src.models.sync import SyncEvent, SyncReconciliationLog
 from src.models.tabular import TabularEditHistory, TabularSyncConfig
 from src.models.ai import AIAuditLog, AIConversation, AIMessage, AISettings
+from src.models.automation import AutomationConfig, AutomationExecution, AutomationRule
 from src.models.tenant import Company, Tenant
 from src.models.user import CompanyUser, PasswordResetToken, User, UserSession
 from src.models.warehouse import (
