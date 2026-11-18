@@ -45,6 +45,7 @@ class MercadoLibreConnector:
         self,
         account_id: uuid.UUID | None = None,
         account: MeliAccount | None = None,
+        access_token: str | None = None,
         db_session: AsyncSession | None = None,
         app_id: str | None = None,
         client_secret: str | None = None,
@@ -62,7 +63,7 @@ class MercadoLibreConnector:
         self._session = db_session
 
         # Caché en memoria del token desencriptado para evitar descifrados repetitivos
-        self._cached_access_token: str | None = None
+        self._cached_access_token: str | None = access_token
         self._cached_refresh_token: str | None = None
         self._token_expires_at: datetime | None = None
 

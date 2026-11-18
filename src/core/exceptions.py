@@ -65,13 +65,16 @@ class DuplicateEntityException(AppException):
 class BusinessRuleViolationException(AppException):
     """Violación de reglas de negocio o validación de dominio."""
 
-    def __init__(self, message: str, rule_name: str = "DOMAIN_RULE"):
+    def __init__(self, message: str, rule_name: str = "DOMAIN_RULE", code: str | None = None):
         super().__init__(
             message=message,
             status_code=422,
-            code="BUSINESS_RULE_VIOLATION",
+            code=code or "BUSINESS_RULE_VIOLATION",
             details={"rule": rule_name},
         )
+
+
+ValidationException = BusinessRuleViolationException
 
 
 class InsufficientStockException(BusinessRuleViolationException):

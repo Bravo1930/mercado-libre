@@ -8,9 +8,10 @@ from src.models.meli_account import MeliAccount
 from src.models.order import Order, OrderClaim, OrderItem, OrderTimeline
 from src.models.payment import Payment
 from src.models.product import Product, ProductSKU, ProductVariant
+from src.models.internal_label import InternalLabelPrintBatch, InternalLabelTemplate
 from src.models.promotion import Promotion, PromotionItem
 from src.models.setting import CompanySetting
-from src.models.shipment import Shipment
+from src.models.shipment import Shipment, ShipmentPrintLog
 from src.models.supplier import PurchaseOrder, PurchaseOrderItem, Supplier
 from src.models.sync import SyncEvent, SyncReconciliationLog
 from src.models.tenant import Company, Tenant
@@ -50,6 +51,9 @@ __all__ = [
     "OrderClaim",
     "Payment",
     "Shipment",
+    "ShipmentPrintLog",
+    "InternalLabelTemplate",
+    "InternalLabelPrintBatch",
     "Promotion",
     "PromotionItem",
     "CostStructure",

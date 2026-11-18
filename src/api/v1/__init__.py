@@ -8,6 +8,7 @@ from src.api.v1.companies import router as companies_router
 from src.api.v1.finances import router as finances_router
 from src.api.v1.health import router as health_router
 from src.api.v1.inventory import router as inventory_router
+from src.api.v1.logistics import router as logistics_router
 from src.api.v1.meli_accounts import router as meli_accounts_router
 from src.api.v1.orders import router as orders_router
 from src.api.v1.products import router as products_router
@@ -30,6 +31,7 @@ api_v1_router.include_router(products_router)
 api_v1_router.include_router(warehouses_router)
 api_v1_router.include_router(inventory_router)
 api_v1_router.include_router(orders_router)
+api_v1_router.include_router(logistics_router)
 api_v1_router.include_router(finances_router)
 api_v1_router.include_router(suppliers_router)
 api_v1_router.include_router(settings_router)

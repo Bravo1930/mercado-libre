@@ -43,6 +43,7 @@ class ActionEnum(str, Enum):
     DELETE = "delete"
     MANAGE = "manage"
     EXPORT = "export"
+    PRINT_LABEL = "print_label"
 
 
 # Módulos privados y confidenciales que requieren pertenencia explícita a la empresa

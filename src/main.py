@@ -121,6 +121,7 @@ def create_app() -> FastAPI:
             content={
                 "success": False,
                 "error": exc.message,
+                "detail": exc.message,
                 "code": exc.code,
                 "details": exc.details,
                 "request_id": request_id,

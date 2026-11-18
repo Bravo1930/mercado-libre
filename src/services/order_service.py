@@ -242,6 +242,74 @@ class OrderService:
                     session.add(new_p)
             await session.flush()
 
+        # Procesar información de Envío y Despacho (Shipment)
+        shipping_id = int(shipping_data.get("id") or 0)
+        if shipping_id:
+            stmt_s = select(Shipment).where(Shipment.meli_shipment_id == shipping_id)
+            shipment_obj = (await session.execute(stmt_s)).scalar_one_or_none()
+
+            # Clasificar dispatch_status operativo inicial
+            if shipment_status in ["shipped", "delivered"]:
+                init_dispatch = "dispatched"
+            elif shipment_status == "cancelled":
+                init_dispatch = "error"
+            elif shipping_data.get("substatus") == "printed":
+                init_dispatch = "prepared"
+            else:
+                init_dispatch = "pending"
+
+            receiver_addr = shipping_data.get("receiver_address")
+            sender_addr = shipping_data.get("sender_address")
+            tracking_num = str(shipping_data.get("tracking_number") or "") or None
+            carrier = shipping_data.get("carrier_name") or (shipping_data.get("shipping_option") or {}).get("name")
+            tracking_meth = shipping_data.get("tracking_method")
+            est_limit_raw = (
+                shipping_data.get("estimated_delivery_limit", {}).get("date")
+                if isinstance(shipping_data.get("estimated_delivery_limit"), dict)
+                else None
+            )
+            est_limit = None
+            if est_limit_raw:
+                try:
+                    est_limit = datetime.fromisoformat(str(est_limit_raw).replace("Z", "+00:00"))
+                except Exception:
+                    pass
+
+            if shipment_obj:
+                shipment_obj.status = shipment_status
+                shipment_obj.substatus = shipping_data.get("substatus")
+                shipment_obj.logistic_type = logistic_type
+                if tracking_num:
+                    shipment_obj.tracking_number = tracking_num
+                if carrier:
+                    shipment_obj.carrier_name = carrier
+                if receiver_addr:
+                    shipment_obj.receiver_address = receiver_addr
+                if sender_addr:
+                    shipment_obj.sender_address = sender_addr
+                shipment_obj.shipping_cost_seller = shipping_cost_seller
+            else:
+                new_shipment = Shipment(
+                    company_id=account.company_id,
+                    order_id=order.id,
+                    meli_shipment_id=shipping_id,
+                    status=shipment_status,
+                    substatus=shipping_data.get("substatus"),
+                    dispatch_status=init_dispatch,
+                    logistic_type=logistic_type,
+                    tracking_number=tracking_num,
+                    tracking_method=tracking_meth,
+                    carrier_name=carrier,
+                    shipping_cost_total=float(shipping_data.get("cost_total", shipping_cost_seller)),
+                    shipping_cost_seller=shipping_cost_seller,
+                    receiver_address=receiver_addr,
+                    sender_address=sender_addr,
+                    shipping_option=shipping_data.get("shipping_option"),
+                    estimated_delivery_limit=est_limit,
+                )
+                session.add(new_shipment)
+            await session.flush()
+
         # Calcular Rentabilidad Financiera Neta y Retenciones SAT
         stmt_cost = select(CostStructure).where(CostStructure.company_id == account.company_id, CostStructure.is_default == True)
         cost_struct = (await session.execute(stmt_cost)).scalar_one_or_none()
