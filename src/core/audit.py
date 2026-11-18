@@ -10,10 +10,10 @@ from src.models.audit import AuditLog
 
 async def record_audit_event(
     session: AsyncSession,
-    company_id: uuid.UUID,
     action: str,
     entity_name: str,
     entity_id: str,
+    company_id: uuid.UUID | None = None,
     changes: dict[str, Any] | None = None,
     user_id: uuid.UUID | None = None,
     ip_address: str | None = None,

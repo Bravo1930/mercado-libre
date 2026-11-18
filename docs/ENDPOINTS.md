@@ -89,16 +89,48 @@ Comprueba la disponibilidad operativa de todos los componentes de la infraestruc
 
 ---
 
-## 3. Autenticación y Control de Acceso (Usuarios ERP)
+## 3. Autenticación, Sesiones y Control de Acceso (RBAC)
 
-### `POST /api/v1/users/login`
-Autentica a un usuario del ERP con credenciales seguras y genera su token JWT de sesión.
+### `POST /api/v1/auth/register-tenant`
+Onboarding integral de una nueva Organización (Tenant), su Empresa fiscal con RFC y el Usuario Administrador inicial en una sola transacción atómica.
 
 - **Request Body:**
 ```json
 {
-  "email": "director@empresa.com.mx",
-  "password": "PasswordSegura123!"
+  "tenant_name": "Logística y Comercio Global S.A.",
+  "tenant_slug": "comercio-global",
+  "company_legal_name": "Logística y Comercio Global de México S.A. de C.V.",
+  "company_rfc": "LCG190412XYZ",
+  "admin_email": "director@comercioglobal.mx",
+  "admin_password": "PasswordFuerte2026!",
+  "admin_full_name": "Alejandro Morales"
+}
+```
+- **Respuesta (HTTP 201 Created):**
+```json
+{
+  "tenant_id": "b1a45f64-5717-4562-b3fc-2c963f66afa6",
+  "tenant_name": "Logística y Comercio Global S.A.",
+  "tenant_slug": "comercio-global",
+  "company_id": "c1a45f64-5717-4562-b3fc-2c963f66afa6",
+  "company_legal_name": "Logística y Comercio Global de México S.A. de C.V.",
+  "company_rfc": "LCG190412XYZ",
+  "user_id": "d1a45f64-5717-4562-b3fc-2c963f66afa6",
+  "email": "director@comercioglobal.mx",
+  "role": "company_admin",
+  "created_at": "2026-11-18T06:15:00Z"
+}
+```
+
+### `POST /api/v1/auth/login`
+Autentica al usuario mediante contraseña con hash bcrypt, genera un identificador de sesión único (`jti`), registra la sesión activa en base de datos y emite el token JWT junto con el listado de empresas autorizadas.
+
+- **Request Body:**
+```json
+{
+  "email": "director@comercioglobal.mx",
+  "password": "PasswordFuerte2026!",
+  "device_info": "Chrome Windows 11"
 }
 ```
 - **Respuesta (HTTP 200 OK):**
@@ -106,18 +138,150 @@ Autentica a un usuario del ERP con credenciales seguras y genera su token JWT de
 {
   "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
   "token_type": "bearer",
-  "expires_in": 86400,
+  "expires_in_minutes": 1440,
   "user": {
-    "id": "c1f7a245-8a8b-4a62-9e23-74d12c8e3120",
-    "email": "director@empresa.com.mx",
-    "full_name": "Carlos Mendoza",
-    "role": "admin",
-    "tenant_id": "b1a45f64-5717-4562-b3fc-2c963f66afa6",
-    "is_active": true
-  }
+    "id": "d1a45f64-5717-4562-b3fc-2c963f66afa6",
+    "email": "director@comercioglobal.mx",
+    "full_name": "Alejandro Morales",
+    "role": "company_admin",
+    "is_active": true,
+    "is_superuser": false,
+    "last_login_at": "2026-11-18T06:20:00Z"
+  },
+  "authorized_companies": [
+    {
+      "company_id": "c1a45f64-5717-4562-b3fc-2c963f66afa6",
+      "legal_name": "Logística y Comercio Global de México S.A. de C.V.",
+      "rfc": "LCG190412XYZ",
+      "role": "company_admin",
+      "permissions": [],
+      "restricted_modules": []
+    }
+  ]
 }
 ```
-- **Errores:** `401 Unauthorized` (Credenciales inválidas o cuenta desactivada).
+
+### `POST /api/v1/auth/logout`
+Cierra la sesión activa actual revocando inmediatamente su identificador (`jti`) en base de datos. Cualquier intento posterior de reutilizar el token JWT será rechazado con HTTP 401.
+
+- **Encabezados:** `Authorization: Bearer <TOKEN>`
+- **Respuesta (HTTP 200 OK):**
+```json
+{
+  "status": "success",
+  "message": "Sesión finalizada exitosamente."
+}
+```
+
+### `POST /api/v1/auth/logout-all`
+Revoca todas las sesiones activas del usuario en todos sus dispositivos (cierre de sesión global).
+
+- **Encabezados:** `Authorization: Bearer <TOKEN>`
+- **Respuesta (HTTP 200 OK):**
+```json
+{
+  "status": "success",
+  "message": "Todas las sesiones activas han sido revocadas."
+}
+```
+
+### `POST /api/v1/auth/forgot-password`
+Solicitud de recuperación de contraseña. Genera un token criptográfico de un solo uso con expiración de 1 hora.
+
+- **Request Body:** `{"email": "director@comercioglobal.mx"}`
+- **Respuesta (HTTP 200 OK):**
+```json
+{
+  "status": "success",
+  "message": "Si el correo electrónico se encuentra registrado, se han generado las instrucciones de recuperación.",
+  "reset_token_dev": "dGVzdF90b2tlbl9yZXNldF8yMDI2..."
+}
+```
+
+### `POST /api/v1/auth/reset-password`
+Restablece la contraseña del usuario utilizando el token criptográfico recibido. Invalida el token tras el uso y revoca automáticamente todas las sesiones previas del usuario por seguridad.
+
+- **Request Body:**
+```json
+{
+  "token": "dGVzdF90b2tlbl9yZXNldF8yMDI2...",
+  "new_password": "NuevaPasswordSegura2026#"
+}
+```
+- **Respuesta (HTTP 200 OK):**
+```json
+{
+  "status": "success",
+  "message": "Contraseña actualizada exitosamente. Todas las sesiones activas han sido cerradas por seguridad."
+}
+```
+
+### `GET /api/v1/auth/me`
+Retorna el perfil del usuario autenticado actualmente.
+
+### `GET /api/v1/auth/my-companies`
+Retorna la lista de todas las empresas a las que el usuario tiene acceso operativo, con su rol específico en cada una.
+
+### `GET /api/v1/auth/sessions`
+Lista las sesiones registradas del usuario con dirección IP, navegador, fecha de última actividad y bandera `is_current`.
+
+### `DELETE /api/v1/auth/sessions/{session_id}`
+Revoca una sesión específica para cerrar el acceso en un dispositivo particular.
+
+---
+
+## 3.1 Matriz de Roles y Control de Acceso
+
+El ERP implementa **8 roles oficiales**:
+
+| # | Rol | Identificador | Alcance | Descripción de Privilegios |
+| :--- | :--- | :--- | :--- | :--- |
+| 1 | Propietario de plataforma | `platform_owner` | Global SaaS | Máxima autoridad de la plataforma, tenants y métricas globales. **No accede a documentos privados sin membresía.** |
+| 2 | Administrador SaaS | `saas_admin` | Global SaaS | Gestión de tenants, suscripciones y soporte técnico. **Sin acceso irrestricto a documentos privados.** |
+| 3 | Administrador de empresa | `company_admin` | Empresa | Control total operativo, fiscal, catálogo, usuarios, almacenes y finanzas de su empresa. |
+| 4 | Director | `director` | Empresa | Visualización integral de ventas, catálogo, auditoría y KPIs financieros. No altera configuraciones del sistema. |
+| 5 | Operador | `operator` | Empresa | Operaciones de catálogo, actualización de pedidos y logística. **Bloqueado de Finanzas, Auditoría y Configuración.** |
+| 6 | Responsable de almacén | `warehouse_manager` | Empresa | Gestión de almacenes, existencias, ajustes Kardex y recepción. **Bloqueado de Finanzas y Credenciales MeLi.** |
+| 7 | Responsable financiero | `financial_manager` | Empresa | Análisis de rentabilidad SAT, COGS, retenciones y compras. **Bloqueado de ajustes físicos de inventario.** |
+| 8 | Usuario de consulta | `viewer` | Empresa | Acceso de solo lectura a catálogo y dashboards básicos. **Sin permisos de modificación ni acceso financiero.** |
+
+---
+
+## 3.2 Administración de Usuarios Multi-Empresa
+
+### `POST /api/v1/companies/{company_id}/users`
+Asigna o vincula a un usuario existente dentro de la empresa activa, especificando su rol local, permisos adicionales y módulos restringidos.
+
+- **Permiso requerido:** `companies:manage`
+- **Request Body:**
+```json
+{
+  "user_id": "e1f7a245-8a8b-4a62-9e23-74d12c8e3120",
+  "role": "operator",
+  "permissions": ["catalog:create", "catalog:update"],
+  "restricted_modules": ["finance", "settings"]
+}
+```
+- **Respuesta (HTTP 201 Created):** Retorna `CompanyUserResponse`.
+- **Prevención de Escalamiento:** El backend valida que el solicitante no pueda otorgar un rol superior al suyo (`can_assign_role`).
+
+### `GET /api/v1/companies/{company_id}/users`
+Lista todos los usuarios con acceso asignado a la empresa.
+
+### `PUT /api/v1/companies/{company_id}/users/{target_user_id}`
+Actualiza el rol, permisos o módulos restringidos de un miembro de la empresa.
+
+### `DELETE /api/v1/companies/{company_id}/users/{target_user_id}`
+Revoca el acceso del usuario a la empresa. Impide que el último administrador se auto-elimine.
+
+---
+
+## 3.3 Reglas Estrictas de Seguridad
+
+1. **Aislamiento Multi-Empresa Estricto:** Cada consulta y mutación en la base de datos se filtra obligatoriamente por el `company_id` verificado en backend (`CompanyContext`).
+2. **Cero Confianza en el Frontend (Zero Trust):** Los identificadores enviados en encabezados (`X-Company-ID`), parámetros de consulta (`company_id`) o cuerpos JSON se verifican en la base de datos contra los registros activos de `CompanyUser`. Cualquier intento de acceso a una empresa no asignada resulta en `HTTP 403 Forbidden`.
+3. **Protección de Documentos Privados:** Los administradores globales (`platform_owner`, `saas_admin`) no tienen acceso irrestricto a módulos privados (`finance`, `orders`, `meli_accounts`, `settings`) a menos que cuenten con una asignación explícita como miembros de la empresa.
+4. **Prevención de Escalamiento de Privilegios:** La jerarquía de roles se valida estrictamente en el backend. Un operador o responsable de almacén no puede crear empresas ni otorgar permisos administrativos.
 
 ### `POST /api/v1/users`
 Registra un nuevo usuario dentro de la organización. Requiere rol `admin`. La contraseña se almacena con hash `bcrypt`.

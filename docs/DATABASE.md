@@ -2,7 +2,7 @@
 
 **Sistema:** ERP Inteligente para Mercado Libre México  
 **Motor:** PostgreSQL 16 (Central)  
-**Total de Tablas:** 24 tablas relacionales  
+**Total de Tablas:** 26 tablas relacionales  
 **Convención de Nombres:** snake_case, claves primarias UUIDv4, marcas de tiempo UTC indexadas.
 
 ---
@@ -15,6 +15,8 @@ erDiagram
     TENANTS ||--o{ USERS : "agrupa"
     COMPANIES ||--o{ COMPANY_USERS : "asigna"
     USERS ||--o{ COMPANY_USERS : "accede"
+    USERS ||--o{ USER_SESSIONS : "mantiene sesiones"
+    USERS ||--o{ PASSWORD_RESET_TOKENS : "solicita recuperacion"
     
     COMPANIES ||--o{ MELI_ACCOUNTS : "vincula"
     COMPANIES ||--o{ PRODUCTS : "posee"
@@ -78,23 +80,62 @@ Razón social o empresa fiscal con RFC mexicano.
 | **Índice Compuesto** | `ix_companies_tenant_rfc` | UNIQUE(tenant_id, rfc) | Impide duplicar el mismo RFC dentro de una organización |
 
 #### 3. `users`
-Usuarios con acceso al sistema y roles RBAC.
+Usuarios con acceso al sistema y roles RBAC (8 roles del sistema).
 | Columna | Tipo | Restricciones | Descripción |
 | :--- | :--- | :--- | :--- |
 | `id` | UUID | PRIMARY KEY | Identificador del usuario |
-| `tenant_id` | UUID | FK -> tenants(id) ON DELETE CASCADE | Organización a la que pertenece |
+| `tenant_id` | UUID | FK -> tenants(id) ON DELETE CASCADE, NULL | Organización a la que pertenece |
 | `email` | VARCHAR(255) | UNIQUE, NOT NULL | Correo electrónico de acceso |
 | `password_hash`| VARCHAR(255) | NOT NULL | Hash criptográfico bcrypt |
 | `full_name` | VARCHAR(150) | NOT NULL | Nombre completo |
-| `role` | VARCHAR(50) | NOT NULL, DEFAULT 'operator' | Rol: admin, manager, operator, viewer |
+| `role` | VARCHAR(50) | NOT NULL, DEFAULT 'operator' | Rol del sistema (platform_owner, saas_admin, company_admin, director, operator, warehouse_manager, financial_manager, viewer) |
 | `is_active` | BOOLEAN | NOT NULL, DEFAULT true | Estado de la cuenta |
 | `is_superuser` | BOOLEAN | NOT NULL, DEFAULT false | Privilegios globales de administración |
+| `last_login_at`| TIMESTAMPTZ | NULL | Fecha y hora del último inicio de sesión exitoso |
+
+#### 4. `company_users`
+Asignación multi-empresa con roles locales, permisos granulares y restricciones modulares.
+| Columna | Tipo | Restricciones | Descripción |
+| :--- | :--- | :--- | :--- |
+| `id` | UUID | PRIMARY KEY | Identificador de la membresía |
+| `user_id` | UUID | FK -> users(id) ON DELETE CASCADE | Usuario asignado |
+| `company_id` | UUID | FK -> companies(id) ON DELETE CASCADE | Empresa asignada |
+| `role` | VARCHAR(50) | NOT NULL, DEFAULT 'operator' | Rol dentro de esta empresa específica |
+| `permissions_json` | TEXT | NULL | Permisos positivos personalizados en formato JSON |
+| `restricted_modules_json` | TEXT | NULL | Módulos bloqueados expresamente en formato JSON |
+| `is_active` | BOOLEAN | NOT NULL, DEFAULT true | Estatus de acceso a esta empresa |
+| **Índice Compuesto** | `ix_company_users_unique` | UNIQUE(user_id, company_id) | Impide duplicar membresía |
+| **Índice Compuesto** | `ix_company_users_lookup` | INDEX(company_id, user_id, is_active) | Búsqueda ultra-rápida de autorización |
+
+#### 5. `user_sessions`
+Gestión y trazabilidad de sesiones activas con revocación inmediata (Logout) e IP.
+| Columna | Tipo | Restricciones | Descripción |
+| :--- | :--- | :--- | :--- |
+| `id` | UUID | PRIMARY KEY | Identificador de la sesión |
+| `user_id` | UUID | FK -> users(id) ON DELETE CASCADE | Usuario propietario |
+| `token_jti` | VARCHAR(64) | UNIQUE, NOT NULL, INDEX | Identificador único del JWT emitido |
+| `ip_address` | VARCHAR(50) | NULL | Dirección IP del cliente |
+| `user_agent` | VARCHAR(255) | NULL | Navegador o cliente HTTP |
+| `device_info` | VARCHAR(100) | NULL | Identificador del dispositivo |
+| `is_revoked` | BOOLEAN | NOT NULL, DEFAULT false, INDEX | Indica si la sesión fue cerrada o revocada |
+| `expires_at` | TIMESTAMPTZ | NOT NULL, INDEX | Fecha de expiración de la sesión |
+| `last_activity_at` | TIMESTAMPTZ | NOT NULL | Última actividad registrada |
+
+#### 6. `password_reset_tokens`
+Tokens criptográficos de un solo uso para recuperación de contraseña.
+| Columna | Tipo | Restricciones | Descripción |
+| :--- | :--- | :--- | :--- |
+| `id` | UUID | PRIMARY KEY | Identificador del registro |
+| `user_id` | UUID | FK -> users(id) ON DELETE CASCADE | Usuario que solicitó el restablecimiento |
+| `token_hash`| VARCHAR(64) | UNIQUE, NOT NULL, INDEX | Hash SHA-256 del token aleatorio secreto |
+| `expires_at` | TIMESTAMPTZ | NOT NULL, INDEX | Expiración (1 hora) |
+| `is_used` | BOOLEAN | NOT NULL, DEFAULT false, INDEX | Bandera de consumo único |
 
 ---
 
 ### B. Ecosistema Mercado Libre México
 
-#### 4. `meli_accounts`
+#### 7. `meli_accounts`
 Cuentas de vendedor oficiales vinculadas mediante OAuth 2.0.
 | Columna | Tipo | Restricciones | Descripción |
 | :--- | :--- | :--- | :--- |

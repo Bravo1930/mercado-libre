@@ -11,7 +11,7 @@ from src.models.base import GUID, Base, TimestampMixin
 if TYPE_CHECKING:
     from src.models.meli_account import MeliAccount
     from src.models.product import Product
-    from src.models.user import User
+    from src.models.user import CompanyUser, User
     from src.models.warehouse import Warehouse
     from src.models.supplier import Supplier
     from src.models.setting import CompanySetting
@@ -68,6 +68,9 @@ class Company(Base, TimestampMixin):
     )
     settings: Mapped[list["CompanySetting"]] = relationship(
         "CompanySetting", back_populates="company", cascade="all, delete-orphan"
+    )
+    user_access: Mapped[list["CompanyUser"]] = relationship(
+        "CompanyUser", back_populates="company", cascade="all, delete-orphan"
     )
 
     __table_args__ = (

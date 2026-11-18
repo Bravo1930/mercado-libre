@@ -7,8 +7,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from src.core.audit import record_audit_event
+from src.core.auth_context import CompanyContext, require_company_permission
 from src.core.database import get_db
+from src.core.exceptions import PermissionDeniedException
 from src.core.pagination import Page, PaginationParams, paginate_query
+from src.core.permissions import ActionEnum, ModuleEnum
 from src.models.product import Product, ProductSKU, ProductVariant
 from src.repositories.base import BaseRepository
 from src.schemas.product import (
@@ -26,9 +29,13 @@ sku_repo = BaseRepository[ProductSKU](ProductSKU)
 @router.post("", response_model=ProductResponse, status_code=status.HTTP_201_CREATED)
 async def create_product_with_variants(
     payload: ProductCreate,
+    ctx: CompanyContext = Depends(require_company_permission(ModuleEnum.CATALOG, ActionEnum.CREATE)),
     session: AsyncSession = Depends(get_db),
 ) -> Product:
-    """Crea un producto maestro con sus variantes iniciales de forma atómica."""
+    """Crea un producto maestro con sus variantes iniciales de forma atómica para la empresa activa."""
+    if payload.company_id != ctx.company_id:
+        raise PermissionDeniedException("No se puede crear un producto para una empresa distinta a la activa.")
+
     product = Product(
         company_id=payload.company_id,
         name=payload.name,
@@ -50,7 +57,6 @@ async def create_product_with_variants(
         session.add(variant)
 
     await session.flush()
-    # Recargar con relaciones
     stmt = select(Product).where(Product.id == product.id).options(selectinload(Product.variants))
     loaded_product = (await session.execute(stmt)).scalar_one()
 
@@ -60,6 +66,7 @@ async def create_product_with_variants(
         action="CREATE_PRODUCT",
         entity_name="Product",
         entity_id=str(product.id),
+        user_id=ctx.user.id,
         changes={"name": product.name, "variants_count": len(payload.variants)},
     )
     return loaded_product
@@ -67,16 +74,16 @@ async def create_product_with_variants(
 
 @router.get("", response_model=Page[ProductResponse])
 async def list_products(
-    company_id: uuid.UUID = Query(..., description="ID de la empresa"),
     search: str | None = Query(None, description="Búsqueda por nombre o marca"),
     category: str | None = Query(None, description="Filtrar por categoría"),
     params: PaginationParams = Depends(),
+    ctx: CompanyContext = Depends(require_company_permission(ModuleEnum.CATALOG, ActionEnum.READ)),
     session: AsyncSession = Depends(get_db),
 ) -> Page[Product]:
-    """Lista productos paginados con búsqueda y variantes precargadas."""
+    """Lista productos paginados con búsqueda y variantes precargadas para la empresa activa."""
     stmt = (
         select(Product)
-        .where(Product.company_id == company_id)
+        .where(Product.company_id == ctx.company_id)
         .options(selectinload(Product.variants))
     )
     if search:
@@ -93,6 +100,7 @@ async def list_products(
 @router.post("/skus", response_model=ProductSKUResponse, status_code=status.HTTP_201_CREATED)
 async def map_variant_to_meli_sku(
     payload: ProductSKUCreate,
+    ctx: CompanyContext = Depends(require_company_permission(ModuleEnum.CATALOG, ActionEnum.CREATE)),
     session: AsyncSession = Depends(get_db),
 ) -> ProductSKU:
     """Mapea una variante interna a una publicación oficial de Mercado Libre México."""

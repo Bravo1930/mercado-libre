@@ -12,7 +12,7 @@ from src.models.setting import CompanySetting
 from src.models.shipment import Shipment
 from src.models.supplier import PurchaseOrder, PurchaseOrderItem, Supplier
 from src.models.tenant import Company, Tenant
-from src.models.user import CompanyUser, User
+from src.models.user import CompanyUser, PasswordResetToken, User, UserSession
 from src.models.warehouse import Inventory, InventoryMovement, Warehouse
 
 __all__ = [
@@ -21,6 +21,8 @@ __all__ = [
     "Company",
     "User",
     "CompanyUser",
+    "UserSession",
+    "PasswordResetToken",
     "MeliAccount",
     "Product",
     "ProductVariant",

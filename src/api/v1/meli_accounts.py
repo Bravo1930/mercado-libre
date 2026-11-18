@@ -7,9 +7,11 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.audit import record_audit_event
+from src.core.auth_context import CompanyContext, require_company_permission
 from src.core.database import get_db
-from src.core.exceptions import EntityAlreadyExistsException
+from src.core.exceptions import EntityAlreadyExistsException, PermissionDeniedException
 from src.core.pagination import Page, PaginationParams
+from src.core.permissions import ActionEnum, ModuleEnum
 from src.core.security import encrypt_token
 from src.models.meli_account import MeliAccount
 from src.repositories.base import BaseRepository
@@ -22,12 +24,16 @@ meli_account_repo = BaseRepository[MeliAccount](MeliAccount)
 @router.post("", response_model=MeliAccountResponse, status_code=status.HTTP_201_CREATED)
 async def register_meli_account(
     payload: MeliAccountCreate,
+    ctx: CompanyContext = Depends(require_company_permission(ModuleEnum.MELI_ACCOUNTS, ActionEnum.CREATE)),
     session: AsyncSession = Depends(get_db),
 ) -> MeliAccount:
     """
-    Vincula una cuenta de Mercado Libre a una empresa.
+    Vincula una cuenta de Mercado Libre a la empresa activa.
     Encripta de forma transparente los tokens de acceso y renovación con AES-256 (Fernet).
     """
+    if payload.company_id != ctx.company_id:
+        raise PermissionDeniedException("No se puede vincular una cuenta de Mercado Libre a una empresa distinta a la activa.")
+
     stmt = select(MeliAccount).where(MeliAccount.meli_user_id == payload.meli_user_id)
     existing = (await session.execute(stmt)).scalar_one_or_none()
     if existing:
@@ -54,6 +60,7 @@ async def register_meli_account(
         action="LINK_MELI_ACCOUNT",
         entity_name="MeliAccount",
         entity_id=str(account.id),
+        user_id=ctx.user.id,
         changes={"nickname": account.nickname, "meli_user_id": account.meli_user_id},
     )
     return account
@@ -61,13 +68,13 @@ async def register_meli_account(
 
 @router.get("", response_model=Page[MeliAccountResponse])
 async def list_meli_accounts(
-    company_id: uuid.UUID = Query(..., description="ID de la empresa propietaria"),
     is_active: bool | None = Query(None),
     params: PaginationParams = Depends(),
+    ctx: CompanyContext = Depends(require_company_permission(ModuleEnum.MELI_ACCOUNTS, ActionEnum.READ)),
     session: AsyncSession = Depends(get_db),
 ) -> Page[MeliAccount]:
-    """Lista las cuentas de Mercado Libre vinculadas a una empresa."""
-    filters = [MeliAccount.company_id == company_id]
+    """Lista las cuentas de Mercado Libre vinculadas a la empresa activa."""
+    filters = [MeliAccount.company_id == ctx.company_id]
     if is_active is not None:
         filters.append(MeliAccount.is_active == is_active)
     return await meli_account_repo.get_paginated(session, params, *filters)
@@ -76,7 +83,15 @@ async def list_meli_accounts(
 @router.get("/{account_id}", response_model=MeliAccountResponse)
 async def get_meli_account(
     account_id: uuid.UUID,
+    ctx: CompanyContext = Depends(require_company_permission(ModuleEnum.MELI_ACCOUNTS, ActionEnum.READ)),
     session: AsyncSession = Depends(get_db),
 ) -> MeliAccount:
-    """Obtiene los detalles públicos y de sincronización de una cuenta de Mercado Libre."""
-    return await meli_account_repo.get_or_fail(session, account_id)
+    """Obtiene los detalles de una cuenta de Mercado Libre validando la pertenencia a la empresa."""
+    stmt = select(MeliAccount).where(
+        MeliAccount.id == account_id,
+        MeliAccount.company_id == ctx.company_id,
+    )
+    account = (await session.execute(stmt)).scalar_one_or_none()
+    if not account:
+        raise PermissionDeniedException("La cuenta de Mercado Libre solicitada no existe o no pertenece a tu empresa.")
+    return account
