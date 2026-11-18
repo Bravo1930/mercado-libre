@@ -17,7 +17,7 @@ class InventoryRepository(BaseRepository[Inventory]):
     async def get_or_create(
         self, session: AsyncSession, warehouse_id: uuid.UUID, variant_id: uuid.UUID
     ) -> Inventory:
-        """Obtiene el registro de inventario o lo inicializa en cero si no existe."""
+        """Obtiene el registro de inventario o lo inicializa en cero si no existe con bloqueo pesimista."""
         stmt = (
             select(Inventory)
             .where(Inventory.warehouse_id == warehouse_id, Inventory.variant_id == variant_id)
@@ -30,10 +30,14 @@ class InventoryRepository(BaseRepository[Inventory]):
             inventory = Inventory(
                 warehouse_id=warehouse_id,
                 variant_id=variant_id,
-                quantity_available=0,
+                quantity_on_hand=0,
                 quantity_reserved=0,
+                quantity_blocked=0,
+                quantity_available=0,
                 safety_stock=5,
+                min_stock=5,
             )
+            inventory.sync_available()
             session.add(inventory)
             await session.flush()
 
@@ -47,16 +51,19 @@ class InventoryRepository(BaseRepository[Inventory]):
         quantity_delta: int,
         movement_type: str = "ADJUSTMENT",
         reference_id: str | None = None,
+        reference_type: str | None = "manual",
+        condition: str | None = "good",
         user_id: uuid.UUID | None = None,
         notes: str | None = None,
     ) -> tuple[Inventory, InventoryMovement]:
         """
         Ajuste transaccional y atómico de inventario.
-        Verifica que el stock resultante no sea negativo e inserta el movimiento en el Kardex.
+        Verifica que el stock físico resultante no sea negativo e inserta el movimiento en el Kardex.
+        Aplica estrictamente la fórmula: Stock disponible = Stock físico - Stock reservado - Stock bloqueado.
         """
         inventory = await self.get_or_create(session, warehouse_id, variant_id)
 
-        quantity_before = inventory.quantity_available
+        quantity_before = inventory.quantity_on_hand
         quantity_after = quantity_before + quantity_delta
 
         if quantity_after < 0:
@@ -64,7 +71,14 @@ class InventoryRepository(BaseRepository[Inventory]):
             sku = variant.sku if variant else str(variant_id)
             raise InsufficientStockException(sku=sku, requested=abs(quantity_delta), available=quantity_before)
 
-        inventory.quantity_available = quantity_after
+        inventory.quantity_on_hand = quantity_after
+
+        # Manejo especial de devoluciones con daño
+        if movement_type in {"RETURN", "DAMAGE"} and condition == "damaged":
+            # Si se devuelve dañado, se suma a físico pero entra inmediatamente a bloqueado
+            inventory.quantity_blocked += abs(quantity_delta)
+
+        inventory.sync_available()
 
         # Registrar movimiento inmutable en el Kardex
         movement = InventoryMovement(
@@ -74,6 +88,7 @@ class InventoryRepository(BaseRepository[Inventory]):
             quantity_before=quantity_before,
             quantity_after=quantity_after,
             reference_id=reference_id,
+            reference_type=reference_type,
             user_id=user_id,
             notes=notes,
         )

@@ -13,7 +13,15 @@ from src.models.shipment import Shipment
 from src.models.supplier import PurchaseOrder, PurchaseOrderItem, Supplier
 from src.models.tenant import Company, Tenant
 from src.models.user import CompanyUser, PasswordResetToken, User, UserSession
-from src.models.warehouse import Inventory, InventoryMovement, Warehouse
+from src.models.warehouse import (
+    Inventory,
+    InventoryMovement,
+    PhysicalCount,
+    PhysicalCountItem,
+    StockTransfer,
+    StockTransferItem,
+    Warehouse,
+)
 
 __all__ = [
     "Base",
@@ -30,6 +38,10 @@ __all__ = [
     "Warehouse",
     "Inventory",
     "InventoryMovement",
+    "StockTransfer",
+    "StockTransferItem",
+    "PhysicalCount",
+    "PhysicalCountItem",
     "Order",
     "OrderItem",
     "Payment",
