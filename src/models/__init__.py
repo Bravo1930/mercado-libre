@@ -38,6 +38,7 @@ from src.models.supplier import (
     SupplierProduct,
 )
 from src.models.sync import SyncEvent, SyncReconciliationLog
+from src.models.tabular import TabularEditHistory, TabularSyncConfig
 from src.models.tenant import Company, Tenant
 from src.models.user import CompanyUser, PasswordResetToken, User, UserSession
 from src.models.warehouse import (
@@ -109,4 +110,6 @@ __all__ = [
     "AuditLog",
     "SyncEvent",
     "SyncReconciliationLog",
+    "TabularSyncConfig",
+    "TabularEditHistory",
 ]

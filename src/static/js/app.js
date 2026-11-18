@@ -23,6 +23,7 @@ import { renderPricing } from './views/pricing.js';
 import { renderFinances } from './views/finances.js';
 import { renderPurchases } from './views/purchases.js';
 import { renderSuppliers } from './views/suppliers.js';
+import { renderTabular } from './views/tabular.js';
 import { renderReports } from './views/reports.js';
 import { renderAI } from './views/ai.js';
 import { renderAutomations } from './views/automations.js';
@@ -44,6 +45,7 @@ const routes = {
   finances: renderFinances,
   purchases: renderPurchases,
   suppliers: renderSuppliers,
+  tabular: renderTabular,
   reports: renderReports,
   ai: renderAI,
   automations: renderAutomations,

@@ -19,6 +19,7 @@ export const NAV_ITEMS = [
   { id: "finances", label: "Finanzas", icon: "finances" },
   { id: "purchases", label: "Compras", icon: "purchases" },
   { id: "suppliers", label: "Proveedores", icon: "suppliers" },
+  { id: "tabular", label: "Planillas ERP", icon: "tabular", badge: "13 Vistas" },
   { id: "reports", label: "Reportes", icon: "reports" },
   { id: "ai", label: "Inteligencia artificial", icon: "ai", badge: "AI" },
   { id: "automations", label: "Automatizaciones", icon: "automations" },
