@@ -62,7 +62,7 @@ class MeliOAuthManager:
             "Content-Type": "application/x-www-form-urlencoded",
         }
 
-        async with httpx.AsyncClient(timeout=20.0) as client:
+        async with httpx.AsyncClient(timeout=20.0, trust_env=False) as client:
             resp = await client.post(self.token_url, data=payload, headers=headers)
             if not resp.is_success:
                 err_data = {}
@@ -103,7 +103,7 @@ class MeliOAuthManager:
             "Content-Type": "application/x-www-form-urlencoded",
         }
 
-        async with httpx.AsyncClient(timeout=20.0) as client:
+        async with httpx.AsyncClient(timeout=20.0, trust_env=False) as client:
             resp = await client.post(self.token_url, data=payload, headers=headers)
             if not resp.is_success:
                 err_data = {}
@@ -134,7 +134,7 @@ class MeliOAuthManager:
             "Authorization": f"Bearer {access_token}",
             "Accept": "application/json",
         }
-        async with httpx.AsyncClient(timeout=15.0) as client:
+        async with httpx.AsyncClient(timeout=15.0, trust_env=False) as client:
             resp = await client.delete(url, headers=headers)
             if resp.status_code in {200, 204}:
                 logger.info(f"Autorización revocada en MeLi para usuario {user_id}")

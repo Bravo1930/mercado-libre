@@ -134,7 +134,7 @@ class OpenAICompatibleProvider(BaseLLMProvider):
         }
 
         try:
-            async with httpx.AsyncClient(timeout=45.0) as client:
+            async with httpx.AsyncClient(timeout=45.0, trust_env=False) as client:
                 res = await client.post(f"{self.base_url}/chat/completions", headers=headers, json=payload)
                 if res.status_code != 200:
                     logger.warning(f"Fallo en proveedor OpenAICompatible ({res.status_code}): {res.text}. Usando fallback.")

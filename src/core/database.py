@@ -1,5 +1,6 @@
 """Gestión de conexiones asíncronas a PostgreSQL 16 con SQLAlchemy 2.0."""
 
+import socket
 from collections.abc import AsyncGenerator
 
 from sqlalchemy import text

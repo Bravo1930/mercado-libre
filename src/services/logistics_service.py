@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from typing import Any, Literal
 import uuid
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import String, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 

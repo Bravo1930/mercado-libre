@@ -4,6 +4,7 @@ import asyncio
 import random
 import time
 from typing import Any, Callable, Coroutine
+from urllib.parse import urlparse
 import httpx
 
 from src.connectors.meli.exceptions import (
@@ -49,6 +50,22 @@ class MeliHTTPClient:
         self.rate_limit: int | None = None
         self.rate_limit_remaining: int | None = None
         self.rate_limit_reset: int | None = None
+
+    def _validate_request_url(self, url: str) -> None:
+        """
+        Valida la URL destino contra SSRF.
+
+        La resolución DNS en vivo solo se aplica a URLs absolutas fuera del
+        host base propio de Mercado Libre: ese host es un destino de primera
+        parte fijado por configuración del servidor (no por el usuario), así
+        que el control aplicable es esquema + host, y la resolución DNS solo
+        añade fragilidad (proxies, VPN, CGNAT o sandboxes donde
+        api.mercadolibre.com resuelve a rangos no enrutables). Cualquier URL
+        absoluta a otro host conserva la validación completa con DNS.
+        """
+        target_host = urlparse(url).hostname
+        base_host = urlparse(self.base_url).hostname
+        validate_safe_url(url, resolve_dns=(target_host != base_host))
 
     async def _get_token(self) -> str | None:
         if self._access_token_provider:
@@ -151,7 +168,7 @@ class MeliHTTPClient:
         """
         url = endpoint if endpoint.startswith("http") else f"{self.base_url}/{endpoint.lstrip('/')}"
         # Validación de ciberseguridad contra Server-Side Request Forgery (SSRF)
-        validate_safe_url(url)
+        self._validate_request_url(url)
         req_headers = {
             "Accept": "application/json",
             "User-Agent": "ERP-MercadoLibre-Connector/1.0 (Python/httpx)",
@@ -170,7 +187,7 @@ class MeliHTTPClient:
         while attempt <= self.max_retries:
             attempt += 1
             try:
-                async with httpx.AsyncClient(timeout=self.timeout) as client:
+                async with httpx.AsyncClient(timeout=self.timeout, trust_env=False) as client:
                     resp = await client.request(
                         method=method,
                         url=url,
@@ -242,7 +259,7 @@ class MeliHTTPClient:
         """Descarga binaria directa (por ejemplo etiquetas PDF o ZPL)."""
         url = endpoint if endpoint.startswith("http") else f"{self.base_url}/{endpoint.lstrip('/')}"
         # Validación de ciberseguridad contra Server-Side Request Forgery (SSRF)
-        validate_safe_url(url)
+        self._validate_request_url(url)
         req_headers = {
             "Accept": "*/*",
             "User-Agent": "ERP-MercadoLibre-Connector/1.0",
@@ -254,7 +271,7 @@ class MeliHTTPClient:
         if token:
             req_headers["Authorization"] = f"Bearer {token}"
 
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
+        async with httpx.AsyncClient(timeout=self.timeout, trust_env=False) as client:
             resp = await client.get(url, params=params, headers=req_headers)
             if not resp.is_success:
                 await self._handle_response(resp)

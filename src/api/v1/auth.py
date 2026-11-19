@@ -29,6 +29,7 @@ from src.core.security import create_access_token, encrypt_token, hash_password,
 from src.core.session_security import SessionAnomalyDetector, revoke_user_sessions
 from src.services.security_monitoring import SecurityMonitoringService, SecurityEventType, SecurityThreatLevel
 from src.models.audit import AuditLog
+from src.models.saas import SaaSSubscription
 from src.models.tenant import Company, Tenant
 from src.models.user import CompanyUser, PasswordResetToken, User, UserSession
 from src.services.saas.subscription_service import SaaSSubscriptionService
@@ -590,7 +591,7 @@ async def meli_oauth_callback(
             "expires_in_hours": 6,
         }
 
-    async with httpx.AsyncClient(timeout=10.0) as client:
+    async with httpx.AsyncClient(timeout=10.0, trust_env=False) as client:
         response = await client.post(token_url, data=payload)
         if response.status_code != 200:
             logger.error(f"Error al canjear código en Mercado Libre: {response.text}")

@@ -57,10 +57,22 @@ def is_ip_allowed(ip_str: str) -> bool:
     return True
 
 
-def validate_safe_url(url: str, allowed_domains: list[str] | None = None) -> str:
+def validate_safe_url(
+    url: str,
+    allowed_domains: list[str] | None = None,
+    resolve_dns: bool = True,
+) -> str:
     """
     Inspecciona y valida rigurosamente una URL para prevenir ataques SSRF.
     Verifica protocolo, resolución DNS e IPs de destino.
+
+    `resolve_dns=False` omite la resolución DNS en vivo y la inspección de IPs.
+    Solo debe usarse para destinos de primera parte fijados por configuración
+    del servidor (por ejemplo, el host base oficial de la API de Mercado
+    Libre): en ese caso el control aplicable es el esquema + el host, y la
+    resolución DNS solo añade fragilidad (proxies, VPN, CGNAT o sandboxes
+    donde el host resuelve a rangos no enrutables). Para URLs aportadas por
+    usuarios o de origen externo, la resolución DNS debe mantenerse activa.
     """
     if not url or not isinstance(url, str):
         raise SSRFProtectionException("La URL proporcionada es inválida o está vacía.", url=str(url))
@@ -94,24 +106,26 @@ def validate_safe_url(url: str, allowed_domains: list[str] | None = None) -> str
                 url=url,
             )
 
-    # 3. Resolución DNS e inspección de direcciones IP
-    try:
-        addr_info = socket.getaddrinfo(hostname, None)
-        resolved_ips = {addr[4][0] for addr in addr_info}
-    except socket.gaierror as exc:
-        raise SSRFProtectionException(f"No fue posible resolver el host '{hostname}': {exc}", url=url)
+    # 3. Resolución DNS e inspección de direcciones IP (solo cuando aplica:
+    #    se omite para destinos de primera parte fijados por configuración)
+    if resolve_dns:
+        try:
+            addr_info = socket.getaddrinfo(hostname, None)
+            resolved_ips = {addr[4][0] for addr in addr_info}
+        except socket.gaierror as exc:
+            raise SSRFProtectionException(f"No fue posible resolver el host '{hostname}': {exc}", url=url)
 
-    for resolved_ip in resolved_ips:
-        if not is_ip_allowed(resolved_ip):
-            logger.warning(
-                f"ALERTA DE SEGURIDAD SSRF: Intento de conexión bloqueado a {url} "
-                f"que resolvió a la IP prohibida {resolved_ip}"
-            )
-            raise SSRFProtectionException(
-                f"Acceso denegado por política de ciberseguridad: La dirección IP de destino "
-                f"({resolved_ip}) pertenece a un rango de red interno, privado o de metadatos.",
-                url=url,
-                resolved_ip=resolved_ip,
-            )
+        for resolved_ip in resolved_ips:
+            if not is_ip_allowed(resolved_ip):
+                logger.warning(
+                    f"ALERTA DE SEGURIDAD SSRF: Intento de conexión bloqueado a {url} "
+                    f"que resolvió a la IP prohibida {resolved_ip}"
+                )
+                raise SSRFProtectionException(
+                    f"Acceso denegado por política de ciberseguridad: La dirección IP de destino "
+                    f"({resolved_ip}) pertenece a un rango de red interno, privado o de metadatos.",
+                    url=url,
+                    resolved_ip=resolved_ip,
+                )
 
     return url
