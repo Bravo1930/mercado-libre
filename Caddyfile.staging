@@ -1,0 +1,39 @@
+# ==============================================================================
+# CADDYFILE - REVERSE PROXY ENTORNO STAGING
+# ==============================================================================
+
+{$DOMAIN_NAME:staging.erp-meli.local} {
+    # Certificado TLS utilizando ACME Staging para evitar límites de tasa
+    tls {$ACME_EMAIL:staging-admin@localhost} {
+        ca https://acme-staging-v02.api.letsencrypt.org/directory
+    }
+
+    # Encabezados de seguridad reforzados
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        Permissions-Policy "camera=(), microphone=(), geolocation=()"
+        X-Environment "Staging-PreProduction"
+        -Server
+    }
+
+    # Proxy inverso hacia el API FastAPI Staging
+    reverse_proxy api_staging:8000 {
+        header_up X-Forwarded-Proto {scheme}
+        header_up X-Real-IP {remote_host}
+        header_up Host {upstream_hostport}
+        
+        transport http {
+            read_timeout 120s
+            write_timeout 120s
+        }
+    }
+
+    # Logs de acceso en JSON
+    log {
+        output stdout
+        format json
+    }
+}

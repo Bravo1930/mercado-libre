@@ -19,6 +19,7 @@ from src.core.logging import get_logger, setup_logging
 from src.core.redis import check_redis_connection, close_redis_connection
 from src.core.security_headers import SecurityHeadersMiddleware
 from src.core.rate_limiter import RateLimitMiddleware
+from src.core.metrics import metrics_registry, metrics_endpoint
 
 # Inicializar sistema de logs
 setup_logging()
@@ -43,9 +44,11 @@ async def lifespan(app: FastAPI):
 
     db_ok, db_msg = await check_database_connection()
     logger.info(f"Diagnóstico PostgreSQL al arranque: {db_msg}")
+    metrics_registry.set_gauge("erp_database_connected", 1.0 if db_ok else 0.0)
 
     redis_ok, redis_msg = await check_redis_connection()
     logger.info(f"Diagnóstico Redis al arranque: {redis_msg}")
+    metrics_registry.set_gauge("erp_redis_connected", 1.0 if redis_ok else 0.0)
 
     yield
 
@@ -94,9 +97,17 @@ def create_app() -> FastAPI:
 
         try:
             response: Response = await call_next(request)
-            process_time = round((time.time() - start_time) * 1000, 2)
+            duration_sec = time.time() - start_time
+            process_time = round(duration_sec * 1000, 2)
             response.headers["X-Request-ID"] = request_id
             response.headers["X-Process-Time-Ms"] = str(process_time)
+
+            metrics_registry.record_http_request(
+                method=request.method,
+                path=request.url.path,
+                status_code=response.status_code,
+                duration_seconds=duration_sec
+            )
 
             if request.url.path not in ["/api/v1/health"]:
                 logger.info(
@@ -162,6 +173,9 @@ def create_app() -> FastAPI:
     static_dir = Path(__file__).resolve().parent / "static"
     if static_dir.exists():
         app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+
+    # Endpoint de Métricas Prometheus
+    app.add_api_route("/metrics", metrics_endpoint, methods=["GET"], tags=["Monitoreo"], include_in_schema=False)
 
     @app.get("/app", tags=["Frontend SPA"], response_class=FileResponse)
     @app.get("/app/{full_path:path}", tags=["Frontend SPA"], response_class=FileResponse)

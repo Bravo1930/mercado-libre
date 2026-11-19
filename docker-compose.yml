@@ -18,6 +18,8 @@ volumes:
     name: meli_erp_caddy_data
   caddy_config:
     name: meli_erp_caddy_config
+  prometheus_data:
+    name: meli_erp_prometheus_data
 
 services:
   # ----------------------------------------------------------------------------
@@ -162,3 +164,23 @@ services:
       timeout: 5s
       retries: 5
       start_period: 5s
+
+  # ----------------------------------------------------------------------------
+  # 6. PROMETHEUS (MONITOREO DE LATENCIA Y MÉTRICAS OPERATIVAS)
+  # ----------------------------------------------------------------------------
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    container_name: meli_erp_prometheus
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:9090:9090"
+    volumes:
+      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=30d"
+      - "--web.enable-lifecycle"
+    networks:
+      - meli_erp_network

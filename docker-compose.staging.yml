@@ -1,0 +1,180 @@
+# ==============================================================================
+# ORQUESTACIÓN DE ENTORNO STAGING (PRE-PRODUCCIÓN) - ERP MERCADO LIBRE MÉXICO
+# ==============================================================================
+# Este entorno se encuentra 100% aislado de producción:
+# - Red independiente: meli_erp_staging_network
+# - Base de datos separada: meli_erp_staging_db
+# - Instancia Redis separada
+# - Puertos públicos mapeados: 8080 (HTTP) y 8443 (HTTPS)
+# ==============================================================================
+
+networks:
+  meli_erp_staging_network:
+    name: meli_erp_staging_network
+    driver: bridge
+
+volumes:
+  staging_postgres_data:
+    name: meli_erp_staging_postgres_data
+  staging_redis_data:
+    name: meli_erp_staging_redis_data
+  staging_storage_data:
+    name: meli_erp_staging_storage_data
+  staging_caddy_data:
+    name: meli_erp_staging_caddy_data
+  staging_caddy_config:
+    name: meli_erp_staging_caddy_config
+  staging_prometheus_data:
+    name: meli_erp_staging_prometheus_data
+
+services:
+  # ----------------------------------------------------------------------------
+  # 1. REVERSE PROXY STAGING CON TLS (CADDY STAGING)
+  # ----------------------------------------------------------------------------
+  caddy_staging:
+    image: caddy:2.8-alpine
+    container_name: meli_erp_staging_caddy
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+      - "8443:443"
+    environment:
+      - DOMAIN_NAME=${DOMAIN_NAME:-staging.erp-meli.local}
+      - ACME_EMAIL=${ACME_EMAIL:-devops@localhost}
+    volumes:
+      - ./Caddyfile.staging:/etc/caddy/Caddyfile:ro
+      - staging_caddy_data:/data
+      - staging_caddy_config:/config
+    networks:
+      - meli_erp_staging_network
+    depends_on:
+      api_staging:
+        condition: service_healthy
+
+  # ----------------------------------------------------------------------------
+  # 2. API PRINCIPAL FASTAPI (ENTORNO STAGING)
+  # ----------------------------------------------------------------------------
+  api_staging:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: meli-erp-api:staging
+    container_name: meli_erp_staging_api
+    restart: unless-stopped
+    env_file:
+      - .env.staging
+    environment:
+      - ENVIRONMENT=staging
+      - POSTGRES_HOST=postgres_staging
+      - REDIS_HOST=redis_staging
+    volumes:
+      - staging_storage_data:/app/storage
+      - ./logs/staging:/app/logs
+    networks:
+      - meli_erp_staging_network
+    depends_on:
+      postgres_staging:
+        condition: service_healthy
+      redis_staging:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # ----------------------------------------------------------------------------
+  # 3. WORKER ASÍNCRONO (ENTORNO STAGING)
+  # ----------------------------------------------------------------------------
+  worker_staging:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: meli-erp-worker:staging
+    container_name: meli_erp_staging_worker
+    restart: unless-stopped
+    command: ["python", "-m", "src.workers.tasks"]
+    env_file:
+      - .env.staging
+    environment:
+      - ENVIRONMENT=staging
+      - POSTGRES_HOST=postgres_staging
+      - REDIS_HOST=redis_staging
+    volumes:
+      - staging_storage_data:/app/storage
+      - ./logs/staging:/app/logs
+    networks:
+      - meli_erp_staging_network
+    depends_on:
+      postgres_staging:
+        condition: service_healthy
+      redis_staging:
+        condition: service_healthy
+
+  # ----------------------------------------------------------------------------
+  # 4. BASE DE DATOS POSTGRESQL 16 (STAGING)
+  # ----------------------------------------------------------------------------
+  postgres_staging:
+    image: postgres:16-alpine
+    container_name: meli_erp_staging_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-meli_erp_staging_db}
+      POSTGRES_USER: ${POSTGRES_USER:-erp_staging_admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-staging_postgres_pass_2026}
+      PGDATA: /var/lib/postgresql/data/pgdata
+      TZ: "America/Mexico_City"
+    volumes:
+      - staging_postgres_data:/var/lib/postgresql/data
+      - ./backups/staging:/backups
+    networks:
+      - meli_erp_staging_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-erp_staging_admin} -d ${POSTGRES_DB:-meli_erp_staging_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+  # ----------------------------------------------------------------------------
+  # 5. REDIS 7 (STAGING)
+  # ----------------------------------------------------------------------------
+  redis_staging:
+    image: redis:7-alpine
+    container_name: meli_erp_staging_redis
+    restart: unless-stopped
+    command: >
+      redis-server
+      --appendonly yes
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+    volumes:
+      - staging_redis_data:/data
+    networks:
+      - meli_erp_staging_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+  # ----------------------------------------------------------------------------
+  # 6. PROMETHEUS (STAGING MONITORING)
+  # ----------------------------------------------------------------------------
+  prometheus_staging:
+    image: prom/prometheus:v2.51.0
+    container_name: meli_erp_staging_prometheus
+    restart: unless-stopped
+    ports:
+      - "9091:9090"
+    volumes:
+      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - staging_prometheus_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.enable-lifecycle"
+    networks:
+      - meli_erp_staging_network
