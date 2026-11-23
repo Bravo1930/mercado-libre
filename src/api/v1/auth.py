@@ -30,6 +30,7 @@ from src.core.session_security import SessionAnomalyDetector, revoke_user_sessio
 from src.services.security_monitoring import SecurityMonitoringService, SecurityEventType, SecurityThreatLevel
 from src.models.audit import AuditLog
 from src.models.saas import SaaSSubscription
+from src.models.meli_account import MeliAccount
 from src.models.tenant import Company, Tenant
 from src.models.user import CompanyUser, PasswordResetToken, User, UserSession
 from src.services.saas.subscription_service import SaaSSubscriptionService
@@ -568,6 +569,7 @@ def get_meli_authorization_url(company_id: str = Query(..., description="UUID de
 async def meli_oauth_callback(
     code: str = Query(..., description="Código temporal de autorización emitido por MeLi"),
     state: str = Query(..., description="Estado / ID de la empresa vinculante"),
+    session: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """Callback oficial que recibe el código de autorización y lo canjea por Access y Refresh Token."""
     settings = get_settings()
@@ -601,14 +603,87 @@ async def meli_oauth_callback(
             )
         data = response.json()
 
-    access_token_enc = encrypt_token(data["access_token"])
-    refresh_token_enc = encrypt_token(data["refresh_token"])
+    # El refresh_token es obligatorio: sin él el ERP no puede renovar el acceso.
+    # Si MeLi no lo devuelve, la app tiene desactivado el flujo "Refresh Token" en DevCenter.
+    if not data.get("refresh_token"):
+        logger.error("Mercado Libre no devolvió refresh_token en el intercambio del código.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Mercado Libre no devolvió refresh_token. Activa el flujo Refresh Token en DevCenter y repite la autorización.",
+        )
+
+    access_token = data["access_token"]
+    refresh_token = data["refresh_token"]
+    meli_user_id = data["user_id"]
+    expires_in = data.get("expires_in", 21600)
+
+    # Nickname oficial del vendedor (para guardar la cuenta con nombre).
+    nickname = f"Vendedor-{meli_user_id}"
+    try:
+        async with httpx.AsyncClient(timeout=10.0, trust_env=False) as client:
+            me = await client.get(
+                f"{settings.MELI_API_BASE_URL}/users/me",
+                headers={"Authorization": f"Bearer {access_token}"},
+            )
+            if me.status_code == 200:
+                nickname = me.json().get("nickname") or nickname
+    except Exception:
+        logger.warning("No se pudo consultar /users/me; se usa nickname por defecto.")
+
+    # La empresa viene en `state` (UUID de la empresa vinculante).
+    try:
+        company_id = uuid.UUID(state)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El identificador de empresa (state) no es válido.",
+        )
+    company = (await session.execute(select(Company).where(Company.id == company_id))).scalar_one_or_none()
+    if company is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="La empresa indicada no existe.",
+        )
+
+    expires_at = datetime.now(timezone.utc) + timedelta(seconds=expires_in)
+    account = (await session.execute(
+        select(MeliAccount).where(MeliAccount.meli_user_id == meli_user_id)
+    )).scalar_one_or_none()
+    if account:
+        if account.company_id != company_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Esta cuenta de Mercado Libre ya está vinculada a otra empresa.",
+            )
+        account.access_token_enc = encrypt_token(access_token)
+        account.refresh_token_enc = encrypt_token(refresh_token)
+        account.token_expires_at = expires_at
+        account.nickname = nickname
+        account.is_active = True
+    else:
+        account = MeliAccount(
+            company_id=company_id,
+            meli_user_id=meli_user_id,
+            nickname=nickname,
+            site_id="MLM",
+            access_token_enc=encrypt_token(access_token),
+            refresh_token_enc=encrypt_token(refresh_token),
+            token_expires_at=expires_at,
+            is_active=True,
+        )
+        session.add(account)
+    await session.flush()
+
+    logger.info(f"Cuenta MeLi {meli_user_id} vinculada a empresa {company_id}")
 
     return {
         "status": "success",
-        "user_id": data["user_id"],
+        "user_id": meli_user_id,
+        "nickname": nickname,
+        "company_id": str(company_id),
         "token_type": data.get("token_type", "bearer"),
-        "expires_in": data["expires_in"],
+        "expires_in": expires_in,
         "scope": data.get("scope"),
         "encrypted": True,
+        "account_saved": True,
     }
