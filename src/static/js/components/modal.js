@@ -7,17 +7,26 @@ import { icons } from "../icons.js";
 
 let activeModal = null;
 
-export function openModal({
-  title = "Ventana Modal",
-  content = "",
-  footer = null,
-  size = "md", // sm, md, lg, xl, full
-  onConfirm = null,
-  confirmText = "Aceptar",
-  confirmDanger = false,
-  cancelText = "Cancelar",
-  onCancel = null,
-}) {
+export function openModal(titleOrOptions, contentArg = "", optionsArg = {}) {
+  // Compatibilidad: las vistas llaman openModal("Título", contenidoHTML)
+  // y otras openModal({ title, content, ... }). Se aceptan ambas formas.
+  // Antes solo se aceptaba el objeto: con la llamada posicional el título
+  // caía en "Ventana Modal" y el contenido quedaba vacío.
+  const opts =
+    typeof titleOrOptions === "string"
+      ? { title: titleOrOptions, content: contentArg, ...optionsArg }
+      : titleOrOptions || {};
+  const {
+    title = "Ventana Modal",
+    content = "",
+    footer = null,
+    size = "md", // sm, md, lg, xl, full
+    onConfirm = null,
+    confirmText = "Aceptar",
+    confirmDanger = false,
+    cancelText = "Cancelar",
+    onCancel = null,
+  } = opts;
   closeModal();
 
   const widthClass = {
