@@ -320,3 +320,37 @@ def test_publish_surfaces_meli_cause_detail(publish_context, monkeypatch):
     assert body["code"] == "MELI_PUBLISH_ERROR"
     assert "body.required_fields" in body["error"]
     assert "Field required: description" in body["error"]
+
+
+def test_publish_surfaces_meli_error_code_when_cause_is_empty(publish_context, monkeypatch):
+    """En body.invalid_fields MeLi devuelve cause=[] y el campo inválido vive
+    en 'error' (p. ej. "The fields [title] are invalid..."): ese detalle debe
+    llegar al mensaje, si no el cuadro rojo no nombra el campo (caso real
+    2026-11-23: HW001, error [title])."""
+    client, company_id, headers, account_id, _factory = publish_context
+    product = _create_charger_product(client, company_id, headers)
+
+    failing = FakeConnector()
+    failing.items = FakeItemsClient(
+        fail_create_with=MeliAPIException(
+            "body.invalid_fields",
+            status_code=400,
+            error_code="The fields [title] are invalid for requested call.",
+            cause=[],
+        )
+    )
+    monkeypatch.setattr(
+        "src.services.catalog_service.MercadoLibreConnector",
+        lambda *args, **kwargs: failing,
+    )
+
+    res = client.post(
+        f"/api/v1/products/{product['id']}/publish-meli",
+        json={"meli_account_id": account_id, "category_id": "MLM1234"},
+        headers=headers,
+    )
+    assert res.status_code == 400
+    body = res.json()
+    assert body["code"] == "MELI_PUBLISH_ERROR"
+    assert "body.invalid_fields" in body["error"]
+    assert "The fields [title] are invalid" in body["error"]

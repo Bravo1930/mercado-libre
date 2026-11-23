@@ -605,7 +605,20 @@ class CatalogService:
         except MeliAPIException as exc:
             # El "cause" oficial de MeLi es lo que nombra el campo faltante
             # (p. ej. body.required_fields); sin él el mensaje es solo un código.
+            # Pero en algunos errores (p. ej. body.invalid_fields) el "cause"
+            # viene VACÍO y el detalle vive en "error" (p. ej. "The fields
+            # [title] are invalid for requested call."): sin surfacerlo, el
+            # cuadro rojo del modal no dice qué campo falló.
             cause_detail = _format_meli_cause(exc.cause)
+            if not cause_detail:
+                _generic = {
+                    "validation_error",
+                    "bad_request",
+                    "unknown_error",
+                    "meli_api_error",
+                }
+                if exc.error_code and exc.error_code not in _generic and exc.error_code != exc.message:
+                    cause_detail = exc.error_code
             message = f"Mercado Libre rechazó la publicación: {exc.message}"
             if cause_detail:
                 message += f" ({cause_detail})"
