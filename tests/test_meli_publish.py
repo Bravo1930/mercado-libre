@@ -285,3 +285,35 @@ def test_publish_surfaces_meli_official_error(publish_context, monkeypatch):
     body = res.json()
     assert body["code"] == "MELI_PUBLISH_ERROR"
     assert "intellectual property" in body["error"]
+
+
+def test_publish_surfaces_meli_cause_detail(publish_context, monkeypatch):
+    """Si MeLi rechaza con body.required_fields, el 'cause' oficial (que nombra
+    el campo faltante) llega en el mensaje en lugar de quedarse solo en details."""
+    client, company_id, headers, account_id, _factory = publish_context
+    product = _create_charger_product(client, company_id, headers)
+
+    failing = FakeConnector()
+    failing.items = FakeItemsClient(
+        fail_create_with=MeliAPIException(
+            "body.required_fields",
+            status_code=400,
+            error_code="bad_request",
+            cause=[{"code": "body.required_fields", "description": "Field required: description"}],
+        )
+    )
+    monkeypatch.setattr(
+        "src.services.catalog_service.MercadoLibreConnector",
+        lambda *args, **kwargs: failing,
+    )
+
+    res = client.post(
+        f"/api/v1/products/{product['id']}/publish-meli",
+        json={"meli_account_id": account_id, "category_id": "MLM1234"},
+        headers=headers,
+    )
+    assert res.status_code == 400
+    body = res.json()
+    assert body["code"] == "MELI_PUBLISH_ERROR"
+    assert "body.required_fields" in body["error"]
+    assert "Field required: description" in body["error"]

@@ -43,6 +43,32 @@ from src.schemas.product import (
 )
 
 
+def _format_meli_cause(cause: list | None) -> str:
+    """Resume el 'cause' oficial de MeLi en una línea legible.
+
+    Las entradas suelen ser dicts con 'description' o 'message' (y a veces
+    solo 'code'); también se aceptan cadenas sueltas. Se recorta para que el
+    mensaje quepa en el cuadro de error del modal.
+    """
+    if not cause:
+        return ""
+    parts: list[str] = []
+    for entry in cause if isinstance(cause, list) else [cause]:
+        if isinstance(entry, dict):
+            text = (
+                entry.get("description")
+                or entry.get("message")
+                or entry.get("code")
+                or str(entry)
+            )
+        else:
+            text = str(entry)
+        text = str(text).strip()
+        if text and text not in parts:
+            parts.append(text)
+    return "; ".join(parts)[:500]
+
+
 def normalize_text(text: str | None) -> str:
     """Normaliza un texto para comparaciones de similitud y detección de duplicados."""
     if not text:
@@ -573,8 +599,14 @@ class CatalogService:
                 code="MELI_RATE_LIMIT",
             ) from exc
         except MeliAPIException as exc:
+            # El "cause" oficial de MeLi es lo que nombra el campo faltante
+            # (p. ej. body.required_fields); sin él el mensaje es solo un código.
+            cause_detail = _format_meli_cause(exc.cause)
+            message = f"Mercado Libre rechazó la publicación: {exc.message}"
+            if cause_detail:
+                message += f" ({cause_detail})"
             raise AppException(
-                f"Mercado Libre rechazó la publicación: {exc.message}",
+                message,
                 status_code=400,
                 code="MELI_PUBLISH_ERROR",
                 details={"meli_error": exc.error_code, "cause": exc.cause},
