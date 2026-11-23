@@ -20,6 +20,8 @@ from src.schemas.product import (
     DuplicatesReportResponse,
     ImportSummaryResponse,
     MeliImportRequest,
+    MeliPublishRequest,
+    MeliPublishResponse,
     ProductCreate,
     ProductResponse,
     ProductSKUCreate,
@@ -161,6 +163,31 @@ async def import_from_meli(
         company_id=ctx.company_id,
         meli_account_id=payload.meli_account_id,
         items=payload.items,
+        user_id=ctx.user.id,
+    )
+
+
+@router.post("/{product_id}/publish-meli", response_model=MeliPublishResponse, status_code=status.HTTP_201_CREATED)
+async def publish_product_to_meli(
+    product_id: uuid.UUID,
+    payload: MeliPublishRequest,
+    ctx: CompanyContext = Depends(require_company_permission(ModuleEnum.CATALOG, ActionEnum.CREATE)),
+    session: AsyncSession = Depends(get_db),
+) -> MeliPublishResponse:
+    """Publica una variante del catálogo en Mercado Libre México (API oficial POST /items).
+
+    Crea la publicación como Gratuita por defecto (listing_type_id="free"),
+    guarda la descripción y deja el mapeo variante <-> publicación (ProductSKU)
+    para gestionar pedidos, stock y precios desde el ERP. Requiere el
+    category_id de MeLi y al menos una foto. Si Mercado Libre rechaza la
+    publicación (GTIN faltante, propiedad intelectual, etc.), el error oficial
+    se devuelve tal cual en el detalle de la respuesta.
+    """
+    return await CatalogService.publish_to_meli(
+        session=session,
+        company_id=ctx.company_id,
+        product_id=product_id,
+        payload=payload,
         user_id=ctx.user.id,
     )
 

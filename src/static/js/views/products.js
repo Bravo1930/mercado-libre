@@ -318,6 +318,13 @@ function renderProductsTable() {
           >
             ${icons.truck} Ver MeLi
           </button>
+          <button
+            data-publish-id="${p.id}"
+            class="btn-publish-meli inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-200 transition-colors mt-1"
+            title="Crear la publicación en Mercado Libre desde el ERP"
+          >
+            Publicar en MeLi
+          </button>
         </td>
 
         <!-- Estatus -->
@@ -394,6 +401,14 @@ function renderProductsTable() {
       const id = btn.dataset.mappingsId;
       const product = productsList.find(p => p.id === id);
       if (product) openMappingsModal(product);
+    });
+  });
+
+  tbody.querySelectorAll(".btn-publish-meli").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const id = btn.dataset.publishId;
+      const product = productsList.find(p => p.id === id);
+      if (product) openPublishModal(product);
     });
   });
 
@@ -947,6 +962,137 @@ async function openMeliImportModal() {
       if (btn) {
         btn.disabled = false;
         btn.innerHTML = `${icons.refresh} Iniciar Importación MeLi`;
+      }
+    }
+  });
+}
+
+// -----------------------------------------------------------------------------
+// MODAL: PUBLICAR EN MERCADO LIBRE (POST /items desde el ERP)
+// -----------------------------------------------------------------------------
+async function openPublishModal(product) {
+  let accounts = [];
+  try {
+    const accRes = await api.get("/meli-accounts?limit=20");
+    accounts = accRes.items || [];
+  } catch (err) {
+    showToast("Error al obtener cuentas de Mercado Libre", "error");
+    return;
+  }
+
+  if (accounts.length === 0) {
+    showToast("Debes vincular primero una cuenta de Mercado Libre en la sección de Integraciones.", "warning");
+    return;
+  }
+
+  const accOptions = accounts.map(a => `<option value="${a.id}">${a.nickname} (Seller ID: ${a.meli_user_id || a.seller_id})</option>`).join("");
+
+  const variantsOptions = product.variants && product.variants.length > 0
+    ? product.variants.map(v => `<option value="${v.id}">${v.variant_name} (SKU: ${v.sku}${v.barcode_ean ? ` · GTIN ${v.barcode_ean}` : ""})</option>`).join("")
+    : `<option value="">Sin variantes</option>`;
+
+  const content = `
+    <form id="meli-publish-form" class="space-y-4">
+      <div class="bg-emerald-50 border border-emerald-200 text-emerald-900 p-3 rounded-xl text-xs leading-relaxed">
+        <strong>Publicar en Mercado Libre desde el ERP</strong><br />
+        Crea la publicación con la API oficial (POST /items), guarda la descripción y deja la publicación
+        vinculada a esta variante para gestionar pedidos, stock y precios desde aquí.
+        <div class="mt-1 font-semibold">
+          ✔ Gratuita por defecto (sin comisión). La marca, el modelo, el GTIN y el color se toman solos del producto y su variante.
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Cuenta de Mercado Libre *</label>
+          <select id="publish-account-select" class="input-field text-sm font-semibold" required>
+            ${accOptions}
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Variante *</label>
+          <select id="publish-variant-select" class="input-field text-sm" required>
+            ${variantsOptions}
+          </select>
+        </div>
+      </div>
+
+      <div>
+        <label class="block text-xs font-semibold text-slate-700 mb-1">Título (máx. 60 caracteres) *</label>
+        <input type="text" id="publish-title" class="input-field text-sm" maxlength="60" value="${(product.name || "").replace(/"/g, "&quot;")}" required />
+      </div>
+
+      <div class="grid grid-cols-3 gap-3">
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">ID de Categoría MeLi *</label>
+          <input type="text" id="publish-category-id" class="input-field text-sm font-mono" placeholder="MLM..." value="${(product.category_code || "").replace(/"/g, "&quot;")}" required />
+          <div class="text-[11px] text-slate-400 mt-1">Se obtiene del predictor de categorías de MeLi con el título del producto.</div>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Precio (MXN) *</label>
+          <input type="number" id="publish-price" step="0.50" min="1" class="input-field text-sm font-mono font-bold" value="${product.sale_price || 0.0}" required />
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Stock inicial *</label>
+          <input type="number" id="publish-quantity" step="1" min="1" class="input-field text-sm font-mono" value="1" required />
+        </div>
+      </div>
+
+      <div>
+        <label class="block text-xs font-semibold text-slate-700 mb-1">Tipo de publicación</label>
+        <select id="publish-listing-type" class="input-field text-sm">
+          <option value="free" selected>Gratuita (sin comisión)</option>
+          <option value="gold_special">Clásica</option>
+          <option value="gold_pro">Premium</option>
+        </select>
+      </div>
+
+      <div>
+        <label class="block text-xs font-semibold text-slate-700 mb-1">Descripción</label>
+        <textarea id="publish-description" rows="3" class="input-field text-sm">${product.description || ""}</textarea>
+      </div>
+
+      <div class="flex justify-end gap-2 pt-2 border-t border-slate-100">
+        <button type="button" id="btn-cancel-meli-pub" class="btn-secondary">Cancelar</button>
+        <button type="submit" id="btn-submit-meli-pub" class="btn-primary flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white border-none font-bold">
+          Publicar en MeLi
+        </button>
+      </div>
+    </form>
+  `;
+
+  openModal(`Publicar en Mercado Libre · ${product.name}`, content);
+  document.getElementById("btn-cancel-meli-pub")?.addEventListener("click", closeModal);
+
+  const form = document.getElementById("meli-publish-form");
+  form?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const btn = document.getElementById("btn-submit-meli-pub");
+    btn.disabled = true;
+    btn.innerHTML = "Publicando en MeLi...";
+
+    const body = {
+      meli_account_id: document.getElementById("publish-account-select").value,
+      variant_id: document.getElementById("publish-variant-select").value || undefined,
+      category_id: document.getElementById("publish-category-id").value.trim(),
+      title: document.getElementById("publish-title").value.trim(),
+      price: parseFloat(document.getElementById("publish-price").value),
+      available_quantity: parseInt(document.getElementById("publish-quantity").value, 10),
+      listing_type_id: document.getElementById("publish-listing-type").value,
+      description: document.getElementById("publish-description").value.trim() || undefined,
+    };
+
+    try {
+      const res = await api.post(`/products/${product.id}/publish-meli`, body);
+      closeModal();
+      showToast(`Publicado en MeLi: ${res.meli_item_id} · ${res.permalink || ""}`, "success");
+      await fetchProducts();
+    } catch (err) {
+      showToast(err.message || "Error al publicar en MeLi", "error");
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = "Publicar en MeLi";
       }
     }
   });

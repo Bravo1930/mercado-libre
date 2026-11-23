@@ -220,6 +220,61 @@ class ImportSummaryResponse(BaseSchema):
 
 
 # ------------------------------------------------------------------------------
+# 4b. ESQUEMAS DE PUBLICACIÓN EN MERCADO LIBRE (POST /items)
+# ------------------------------------------------------------------------------
+class MeliAttributePayload(BaseSchema):
+    id: str = Field(..., min_length=1, description="ID oficial del atributo MeLi (e.g. BRAND, MODEL, GTIN, COLOR)")
+    value_name: str = Field(..., min_length=1, description="Valor del atributo")
+
+
+class MeliPublishRequest(BaseSchema):
+    meli_account_id: uuid.UUID = Field(..., description="Cuenta de vendedor MeLi vinculada a la empresa")
+    variant_id: uuid.UUID | None = Field(
+        default=None, description="Variante a publicar. Por defecto, la primera variante activa del producto."
+    )
+    category_id: str = Field(
+        ...,
+        min_length=3,
+        max_length=50,
+        description="ID de categoría MeLi (e.g. MLM...). Se obtiene del predictor de categorías o del flujo web.",
+    )
+    title: str | None = Field(
+        default=None, max_length=60, description="Título de la publicación (máx. 60 caracteres). Por defecto, el nombre del producto."
+    )
+    price: float | None = Field(default=None, gt=0.0, description="Precio en MXN. Por defecto, el de la variante o del producto.")
+    available_quantity: int = Field(default=1, ge=1, description="Stock inicial a publicar")
+    listing_type_id: str = Field(
+        default="free", description="free = Gratuita (sin comisión), gold_special = Clásica, gold_pro = Premium"
+    )
+    pictures: list[str] = Field(
+        default_factory=list, description="URLs públicas de las fotos. Por defecto, las imágenes del producto."
+    )
+    description: str | None = Field(
+        default=None, description="Descripción en texto plano. Por defecto, la descripción del producto."
+    )
+    attributes: list[MeliAttributePayload] = Field(
+        default_factory=list,
+        description="Atributos extra; BRAND, MODEL, GTIN y COLOR se completan automáticamente cuando existen.",
+    )
+    warranty_type: str = Field(default="Garantía de fábrica", description="Tipo de garantía (sale_terms WARRANTY_TYPE)")
+    warranty_time: str = Field(default="90 días", description="Duración de la garantía (sale_terms WARRANTY_TIME)")
+
+
+class MeliPublishResponse(BaseSchema):
+    meli_item_id: str = Field(..., description="ID de la publicación creada en MeLi (e.g. MLM123456789)")
+    permalink: str | None = Field(default=None, description="URL pública de la publicación")
+    title: str
+    price: float
+    listing_type_id: str
+    status: str = Field(default="active")
+    variant_id: uuid.UUID
+    product_sku_id: uuid.UUID = Field(..., description="ID del mapeo interno variante <-> publicación MeLi")
+    description_error: str | None = Field(
+        default=None, description="Si la descripción no se pudo guardar, la publicación existe pero este campo explica el fallo."
+    )
+
+
+# ------------------------------------------------------------------------------
 # 5. ESQUEMAS DE DETECCIÓN DE DUPLICADOS
 # ------------------------------------------------------------------------------
 class DuplicateCandidate(BaseSchema):

@@ -21,15 +21,21 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from src.connectors.meli.connector import MercadoLibreConnector
+from src.connectors.meli.exceptions import MeliAPIException, MeliAuthException, MeliRateLimitException
 from src.core.audit import record_audit_event
-from src.core.exceptions import DuplicateEntityException, EntityNotFoundException
+from src.core.exceptions import AppException, DuplicateEntityException, EntityNotFoundException
+from src.models.meli_account import MeliAccount
 from src.models.product import Product, ProductSKU, ProductVariant
 from src.schemas.product import (
     DuplicateCandidate,
     DuplicateGroup,
     DuplicatesReportResponse,
     ImportSummaryResponse,
+    MeliAttributePayload,
     MeliItemImportPayload,
+    MeliPublishRequest,
+    MeliPublishResponse,
     ProductCreate,
     ProductUpdate,
     ProductVariantCreate,
@@ -399,6 +405,254 @@ class CatalogService:
             updated=updated_count,
             linked_mappings=linked_mappings,
             errors=errors,
+        )
+
+    # ------------------------------------------------------------------
+    # PUBLICACIÓN EN MERCADO LIBRE (POST /items)
+    # ------------------------------------------------------------------
+    @classmethod
+    def _build_meli_item_payload(
+        cls,
+        *,
+        product: Product,
+        variant: ProductVariant,
+        payload: MeliPublishRequest,
+    ) -> tuple[dict[str, Any], str, float, list[str]]:
+        """Arma el payload oficial de POST /items y valida lo que MeLi exige.
+
+        Devuelve (payload_meli, título_final, precio_final, fotos_finales).
+        Lanza AppException 400 con un mensaje claro cuando falta un dato
+        que Mercado Libre rechazaría de todos modos.
+        """
+        title = (payload.title or product.name or "").strip()
+        if not title:
+            raise AppException(
+                "El producto necesita un título para publicarse en Mercado Libre.",
+                status_code=400,
+                code="VALIDATION_ERROR",
+            )
+        if len(title) > 60:
+            raise AppException(
+                f"El título tiene {len(title)} caracteres y Mercado Libre acepta máximo 60: '{title}'",
+                status_code=400,
+                code="VALIDATION_ERROR",
+            )
+
+        price = payload.price or variant.sale_price or product.sale_price
+        if not price or float(price) <= 0:
+            raise AppException(
+                "El producto necesita un precio mayor a 0 para publicarse en Mercado Libre.",
+                status_code=400,
+                code="VALIDATION_ERROR",
+            )
+        price = float(price)
+
+        pictures = list(payload.pictures or product.images or [])
+        if not pictures:
+            raise AppException(
+                "Se requiere al menos una foto (URL pública) para publicar en Mercado Libre.",
+                status_code=400,
+                code="VALIDATION_ERROR",
+            )
+
+        # Atributos: BRAND / MODEL / GTIN / COLOR se completan solos cuando
+        # existen; los extras del request prevalecen si repiten un mismo id.
+        attributes: dict[str, str] = {}
+        if product.brand:
+            attributes["BRAND"] = product.brand
+        if product.model:
+            attributes["MODEL"] = product.model
+        if variant.barcode_ean:
+            attributes["GTIN"] = variant.barcode_ean
+        variant_color = (variant.attributes or {}).get("color")
+        if variant_color:
+            attributes["COLOR"] = str(variant_color)
+        for extra in payload.attributes or []:
+            attributes[extra.id] = extra.value_name
+
+        meli_payload: dict[str, Any] = {
+            "title": title,
+            "category_id": payload.category_id,
+            "price": price,
+            "currency_id": "MXN",
+            "available_quantity": payload.available_quantity,
+            "buying_mode": "buy_it_now",
+            "listing_type_id": payload.listing_type_id,
+            "condition": "new",
+            "pictures": [{"source": url} for url in pictures],
+            "sale_terms": [
+                {"id": "WARRANTY_TYPE", "value_name": payload.warranty_type},
+                {"id": "WARRANTY_TIME", "value_name": payload.warranty_time},
+            ],
+            "shipping": {"mode": "me2", "local_pick_up": False, "free_shipping": False},
+        }
+        if attributes:
+            meli_payload["attributes"] = [
+                {"id": attr_id, "value_name": value} for attr_id, value in attributes.items()
+            ]
+        return meli_payload, title, price, pictures
+
+    @classmethod
+    async def publish_to_meli(
+        cls,
+        session: AsyncSession,
+        company_id: uuid.UUID,
+        product_id: uuid.UUID,
+        payload: MeliPublishRequest,
+        user_id: uuid.UUID,
+        connector: MercadoLibreConnector | None = None,
+    ) -> MeliPublishResponse:
+        """Publica una variante del catálogo en Mercado Libre México.
+
+        1. Valida producto, variante y cuenta MeLi (todas de la empresa activa).
+        2. Crea la publicación con POST /items (conector oficial).
+        3. Guarda la descripción con PUT /items/{id}/description (best-effort:
+           si falla, la publicación ya existe y el fallo se reporta sin abortar).
+        4. Crea el mapeo interno variante <-> publicación (ProductSKU) para que
+           pedidos, stock y precios se gestionen desde el ERP.
+        El parámetro `connector` existe solo para pruebas (inyección del conector).
+        """
+        stmt_product = (
+            select(Product)
+            .where(Product.id == product_id, Product.company_id == company_id)
+            .options(selectinload(Product.variants))
+        )
+        product = (await session.execute(stmt_product)).scalar_one_or_none()
+        if not product:
+            raise EntityNotFoundException("Producto", str(product_id))
+
+        variant: ProductVariant | None = None
+        if payload.variant_id:
+            variant = next((v for v in product.variants if v.id == payload.variant_id), None)
+            if not variant:
+                raise EntityNotFoundException("Variante de Producto", str(payload.variant_id))
+        else:
+            variant = next((v for v in product.variants if v.is_active), None) or (
+                product.variants[0] if product.variants else None
+            )
+        if not variant:
+            raise AppException(
+                "El producto no tiene variantes para publicar en Mercado Libre.",
+                status_code=400,
+                code="VALIDATION_ERROR",
+            )
+
+        stmt_account = select(MeliAccount).where(
+            MeliAccount.id == payload.meli_account_id,
+            MeliAccount.company_id == company_id,
+        )
+        account = (await session.execute(stmt_account)).scalar_one_or_none()
+        if not account:
+            raise EntityNotFoundException("Cuenta de Mercado Libre", str(payload.meli_account_id))
+        if not account.is_active:
+            raise AppException(
+                "La cuenta de Mercado Libre está desconectada. Reconéctala antes de publicar.",
+                status_code=400,
+                code="VALIDATION_ERROR",
+            )
+
+        meli_payload, title, price, _pictures = cls._build_meli_item_payload(
+            product=product, variant=variant, payload=payload
+        )
+
+        meli = connector or MercadoLibreConnector(account=account, db_session=session)
+        try:
+            await meli.check_and_proactively_refresh()
+            created = await meli.items.create_item(meli_payload)
+        except MeliAuthException as exc:
+            raise AppException(
+                f"Mercado Libre rechazó las credenciales de la cuenta: {exc.message}",
+                status_code=401,
+                code="MELI_AUTH_ERROR",
+                details={"meli_error": exc.error_code, "cause": exc.cause},
+            ) from exc
+        except MeliRateLimitException as exc:
+            raise AppException(
+                "Mercado Libre limitó las llamadas (HTTP 429). Inténtalo de nuevo en unos minutos.",
+                status_code=429,
+                code="MELI_RATE_LIMIT",
+            ) from exc
+        except MeliAPIException as exc:
+            raise AppException(
+                f"Mercado Libre rechazó la publicación: {exc.message}",
+                status_code=400,
+                code="MELI_PUBLISH_ERROR",
+                details={"meli_error": exc.error_code, "cause": exc.cause},
+            ) from exc
+
+        meli_item_id = str(created.get("id", ""))
+        if not meli_item_id:
+            raise AppException(
+                "Mercado Libre no devolvió el ID de la publicación creada.",
+                status_code=502,
+                code="MELI_PUBLISH_ERROR",
+                details={"meli_response": created},
+            )
+        permalink = created.get("permalink")
+
+        # Mapeo interno variante <-> publicación (nunca perder el vínculo).
+        stmt_map = select(ProductSKU).where(
+            ProductSKU.meli_account_id == account.id,
+            ProductSKU.meli_item_id == meli_item_id,
+        )
+        existing_map = (await session.execute(stmt_map)).scalar_one_or_none()
+        if existing_map:
+            existing_map.variant_id = variant.id
+            existing_map.price = price
+            existing_map.listing_type_id = payload.listing_type_id
+            existing_map.status = "active"
+            sku_mapping = existing_map
+        else:
+            sku_mapping = ProductSKU(
+                company_id=company_id,
+                meli_account_id=account.id,
+                variant_id=variant.id,
+                meli_item_id=meli_item_id,
+                seller_sku=variant.sku,
+                price=price,
+                listing_type_id=payload.listing_type_id,
+                logistic_type="fulfillment",
+                status="active",
+            )
+            session.add(sku_mapping)
+        await session.flush()
+
+        # Descripción: endpoint separado en MeLi; si falla, la publicación
+        # ya existe y solo se reporta el fallo, no se aborta nada.
+        description_error: str | None = None
+        description = (payload.description or product.description or product.short_description or "").strip()
+        if description:
+            try:
+                await meli.items.update_description(meli_item_id, description)
+            except MeliAPIException as exc:
+                description_error = f"No se pudo guardar la descripción: {exc.message}"
+
+        await record_audit_event(
+            session=session,
+            company_id=company_id,
+            action="PUBLISH_MELI_ITEM",
+            entity_name="ProductSKU",
+            entity_id=str(sku_mapping.id),
+            user_id=user_id,
+            changes={
+                "meli_item_id": meli_item_id,
+                "variant_id": str(variant.id),
+                "price": price,
+                "listing_type_id": payload.listing_type_id,
+                "permalink": permalink,
+            },
+        )
+
+        return MeliPublishResponse(
+            meli_item_id=meli_item_id,
+            permalink=permalink,
+            title=title,
+            price=price,
+            listing_type_id=payload.listing_type_id,
+            status=str(created.get("status", "active")),
+            variant_id=variant.id,
+            product_sku_id=sku_mapping.id,
+            description_error=description_error,
         )
 
     @classmethod
