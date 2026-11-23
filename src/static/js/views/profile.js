@@ -199,3 +199,10 @@ function handleLogoutAll() {
     }
   );
 }
+
+
+// Adaptador para el encabezado: el perfil es una vista completa del ERP,
+// así que el botón "Perfil" navega a la ruta #profile.
+export function openProfileModal() {
+  state.setRoute("profile");
+}

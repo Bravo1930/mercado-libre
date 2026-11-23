@@ -129,3 +129,8 @@ window.addEventListener("keydown", (e) => {
     openSearchModal();
   }
 });
+
+
+// Adaptador para app.js: el atajo global Ctrl+K / Cmd+K ya se registra al
+// importar este módulo (listener al final del archivo); no hay nada más que inicializar.
+export function initSearchModal() {}

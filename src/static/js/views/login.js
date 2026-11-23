@@ -299,3 +299,12 @@ export function renderLoginView() {
   update();
   return container;
 }
+
+
+// Adaptador para app.js: la app espera renderLogin(contenedor) y descarta el
+// valor de retorno; renderLoginView() no recibe argumentos y devuelve el elemento.
+export function renderLogin(container) {
+  const el = renderLoginView();
+  if (container) container.appendChild(el);
+  return el;
+}

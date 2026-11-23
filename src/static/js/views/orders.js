@@ -859,3 +859,12 @@ export function renderOrdersView() {
 
   return container;
 }
+
+
+// Adaptador para app.js: la app espera renderOrders(contenedor) y descarta el
+// valor de retorno; renderOrdersView() no recibe argumentos y devuelve el elemento.
+export function renderOrders(container) {
+  const el = renderOrdersView();
+  if (container) container.appendChild(el);
+  return el;
+}

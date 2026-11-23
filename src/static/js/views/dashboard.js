@@ -1074,3 +1074,12 @@ function renderTopTables(root, kpis) {
     }
   }
 }
+
+
+// Adaptador para app.js: la app espera renderDashboard(contenedor) y descarta el
+// valor de retorno; renderDashboardView() no recibe argumentos y devuelve el elemento.
+export function renderDashboard(container) {
+  const el = renderDashboardView();
+  if (container) container.appendChild(el);
+  return el;
+}

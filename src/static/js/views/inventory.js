@@ -799,3 +799,12 @@ export function renderInventoryView() {
 
   return container;
 }
+
+
+// Adaptador para app.js: la app espera renderInventory(contenedor) y descarta el
+// valor de retorno; renderInventoryView() no recibe argumentos y devuelve el elemento.
+export function renderInventory(container) {
+  const el = renderInventoryView();
+  if (container) container.appendChild(el);
+  return el;
+}

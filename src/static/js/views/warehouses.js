@@ -649,3 +649,12 @@ export function renderWarehousesView() {
 
   return container;
 }
+
+
+// Adaptador para app.js: la app espera renderWarehouses(contenedor) y descarta el
+// valor de retorno; renderWarehousesView() no recibe argumentos y devuelve el elemento.
+export function renderWarehouses(container) {
+  const el = renderWarehousesView();
+  if (container) container.appendChild(el);
+  return el;
+}
