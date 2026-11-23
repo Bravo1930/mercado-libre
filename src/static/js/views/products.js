@@ -594,7 +594,10 @@ function openProductFormModal(product = null) {
         const barcodeVal = document.getElementById("variant-barcode-input").value.trim() || null;
 
         const createPayload = {
-          company_id: currentCompany.id,
+          // La empresa viene como CompanyBriefResponse: el campo es
+          // company_id, no id (igual que el fallback de api.js). Sin esto
+          // el company_id llegaba undefined y la API devolvía 422.
+          company_id: currentCompany.id || currentCompany.company_id,
           name, brand, model, category, unit_of_measure: unitOfMeasure,
           cost_price: costPrice, sale_price: salePrice, wholesale_price: wholesalePrice,
           weight_kg: weightKg, length_cm: lengthCm, width_cm: widthCm, height_cm: heightCm,
