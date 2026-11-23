@@ -184,7 +184,13 @@ def test_publish_creates_meli_item_description_and_mapping(publish_context, monk
     # El payload enviado a MeLi lleva lo que el flujo web pedía a mano.
     assert len(fake.items.created_payloads) == 1
     sent = fake.items.created_payloads[0]
-    assert sent["title"] == "Cargador USB-C 2 en 1 PD 20W Doble Puerto"
+    # En el modelo User Products de MeLi NO se manda "title": el título lo
+    # compone Mercado Libre a partir de family_name + atributos; mandar
+    # "title" hace que POST /items responda body.invalid_fields
+    # ("The fields [title] are invalid for requested call.", caso real
+    # 2026-11-23 con HW001). El campo del modal sigue siendo el nombre del
+    # producto, que viaja como family_name.
+    assert "title" not in sent
     # family_name: MeLi lo exige en categorías con dominio de catálogo
     # (sin él, POST /items responde body.required_fields).
     assert sent["family_name"] == "Cargador USB-C 2 en 1 PD 20W Doble Puerto"

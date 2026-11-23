@@ -1023,8 +1023,9 @@ async function openPublishModal(product) {
       </div>
 
       <div>
-        <label class="block text-xs font-semibold text-slate-700 mb-1">Título (máx. 60 caracteres) *</label>
+        <label class="block text-xs font-semibold text-slate-700 mb-1">Nombre del producto (máx. 60 caracteres) *</label>
         <input type="text" id="publish-title" class="input-field text-sm" maxlength="60" value="${(product.name || "").replace(/"/g, "&quot;")}" required />
+        <div class="text-[11px] text-slate-400 mt-1">Mercado Libre arma el título de la publicación a partir de este nombre + marca y modelo. No incluyas color ni condición.</div>
       </div>
 
       <div class="grid grid-cols-3 gap-3">

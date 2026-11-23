@@ -497,10 +497,16 @@ class CatalogService:
             attributes[extra.id] = extra.value_name
 
         meli_payload: dict[str, Any] = {
-            "title": title,
-            # MeLi exige family_name en categorías con dominio de catálogo
-            # (MLM7533 Audífonos lo rechazó con body.required_fields sin él):
-            # agrupa las variantes del mismo producto en una familia.
+            # NO se manda "title": en el modelo User Products de MeLi (el que
+            # rige las categorías con dominio de catálogo, como MLM7533) el
+            # título lo completa Mercado Libre solo a partir de family_name +
+            # atributos; mandar "title" hace que POST /items responda 400
+            # body.invalid_fields "The fields [title] are invalid for
+            # requested call." (visto 2026-11-23 con dos títulos distintos,
+            # con y sin marca+modelo). Doc oficial: developers.mercadolibre
+            # .com.mx/en_us/user-products — "it will not be possible to
+            # publish with the previous model (using title and variations
+            # array)"; family_name debe ser <= max_title_length del dominio.
             "family_name": title,
             "category_id": payload.category_id,
             "price": price,
