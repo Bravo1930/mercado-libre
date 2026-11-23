@@ -498,6 +498,10 @@ class CatalogService:
 
         meli_payload: dict[str, Any] = {
             "title": title,
+            # MeLi exige family_name en categorías con dominio de catálogo
+            # (MLM7533 Audífonos lo rechazó con body.required_fields sin él):
+            # agrupa las variantes del mismo producto en una familia.
+            "family_name": title,
             "category_id": payload.category_id,
             "price": price,
             "currency_id": "MXN",

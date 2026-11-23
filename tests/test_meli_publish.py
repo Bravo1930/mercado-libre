@@ -185,6 +185,9 @@ def test_publish_creates_meli_item_description_and_mapping(publish_context, monk
     assert len(fake.items.created_payloads) == 1
     sent = fake.items.created_payloads[0]
     assert sent["title"] == "Cargador USB-C 2 en 1 PD 20W Doble Puerto"
+    # family_name: MeLi lo exige en categorías con dominio de catálogo
+    # (sin él, POST /items responde body.required_fields).
+    assert sent["family_name"] == "Cargador USB-C 2 en 1 PD 20W Doble Puerto"
     assert sent["category_id"] == "MLM1234"
     assert sent["price"] == 129.00
     assert sent["currency_id"] == "MXN"
