@@ -1005,6 +1005,8 @@ async function openPublishModal(product) {
         </div>
       </div>
 
+      <div id="meli-publish-error" class="hidden bg-red-50 border border-red-200 text-red-900 p-3 rounded-xl text-xs leading-relaxed font-semibold"></div>
+
       <div class="grid grid-cols-2 gap-3">
         <div>
           <label class="block text-xs font-semibold text-slate-700 mb-1">Cuenta de Mercado Libre *</label>
@@ -1071,6 +1073,7 @@ async function openPublishModal(product) {
   form?.addEventListener("submit", async (e) => {
     e.preventDefault();
     const btn = document.getElementById("btn-submit-meli-pub");
+    document.getElementById("meli-publish-error")?.classList.add("hidden");
     btn.disabled = true;
     btn.innerHTML = "Publicando en MeLi...";
 
@@ -1091,7 +1094,15 @@ async function openPublishModal(product) {
       showToast(`Publicado en MeLi: ${res.meli_item_id} · ${res.permalink || ""}`, "success");
       await fetchProducts();
     } catch (err) {
-      showToast(err.message || "Error al publicar en MeLi", "error");
+      // El mensaje queda fijo dentro del modal (además del toast, que desaparece
+      // en segundos) para poder leer el error exacto que devolvió Mercado Libre.
+      const msg = err.message || "Error al publicar en MeLi";
+      const errBox = document.getElementById("meli-publish-error");
+      if (errBox) {
+        errBox.textContent = msg;
+        errBox.classList.remove("hidden");
+      }
+      showToast(msg, "error");
     } finally {
       if (btn) {
         btn.disabled = false;
