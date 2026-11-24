@@ -1066,6 +1066,10 @@ async function openPublishModal(product) {
         </div>
       </div>
 
+      <!-- Atributos requeridos por la categoría (se rellenan solos según el ID
+           de categoría; p. ej. "Tipo de conector" en MLM429747). -->
+      <div id="publish-required-attrs" class="space-y-3"></div>
+
       <div>
         <label class="block text-xs font-semibold text-slate-700 mb-1">Tipo de publicación</label>
         <select id="publish-listing-type" class="input-field text-sm">
@@ -1092,6 +1096,55 @@ async function openPublishModal(product) {
   openModal(`Publicar en Mercado Libre · ${product.name}`, content);
   document.getElementById("btn-cancel-meli-pub")?.addEventListener("click", closeModal);
 
+  // Atributos que Mercado Libre exige según la categoría (hardcodeado).
+  // MeLi los marca required + catalog_required por categoría y sin ellos el
+  // POST /items responde 400 (caso real 2026-11-23: CONNECTOR_TYPE en
+  // MLM429747, "The attributes [CONNECTOR_TYPE] are required..."). Para
+  // agregar otro atributo requerido de otra categoría: añadir una entrada
+  // aquí con sus valores de catálogo (value_id = ID oficial de MeLi).
+  const MELI_REQUIRED_ATTRIBUTES = {
+    MLM429747: [
+      {
+        id: "CONNECTOR_TYPE",
+        label: "Tipo de conector",
+        required: true,
+        values: [
+          { value_id: "82230", value_name: "USB" },
+          { value_id: "10787099", value_name: "Micro-USB" },
+          { value_id: "2113108", value_name: "USB-C" },
+          { value_id: "22106244", value_name: "USB/USB-C" },
+          { value_id: "18439714", value_name: "Usb/micro-usb" },
+        ],
+      },
+    ],
+  };
+
+  // Muestra los selects de atributos requeridos solo cuando la categoría
+  // escrita coincide con una entrada de MELI_REQUIRED_ATTRIBUTES.
+  function renderRequiredAttrs() {
+    const container = document.getElementById("publish-required-attrs");
+    if (!container) return;
+    const categoryId = (document.getElementById("publish-category-id")?.value || "").trim().toUpperCase();
+    const defs = MELI_REQUIRED_ATTRIBUTES[categoryId] || [];
+    if (defs.length === 0) {
+      container.innerHTML = "";
+      return;
+    }
+    container.innerHTML = defs.map(def => `
+      <div>
+        <label class="block text-xs font-semibold text-slate-700 mb-1">${def.label} *</label>
+        <select id="publish-attr-${def.id}" class="input-field text-sm" data-attr-id="${def.id}" required>
+          <option value="">Selecciona ${def.label.toLowerCase()}...</option>
+          ${def.values.map(v => `<option value="${v.value_id}" data-value-name="${v.value_name}">${v.value_name}</option>`).join("")}
+        </select>
+        <div class="text-[11px] text-slate-400 mt-1">Mercado Libre lo exige para esta categoría; sin él rechaza la publicación.</div>
+      </div>
+    `).join("");
+  }
+
+  document.getElementById("publish-category-id")?.addEventListener("input", renderRequiredAttrs);
+  renderRequiredAttrs();
+
   const form = document.getElementById("meli-publish-form");
   form?.addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -1099,6 +1152,33 @@ async function openPublishModal(product) {
     document.getElementById("meli-publish-error")?.classList.add("hidden");
     btn.disabled = true;
     btn.innerHTML = "Publicando en MeLi...";
+
+    const errBoxEarly = document.getElementById("meli-publish-error");
+
+    // Atributos requeridos por la categoría (e.g. CONNECTOR_TYPE en
+    // MLM429747): si falta el obligatorio, se bloquea la publicación con un
+    // mensaje claro en lugar de mandar el POST y que MeLi lo rechace.
+    const requiredAttrs = [];
+    const categoryId = (document.getElementById("publish-category-id").value || "").trim().toUpperCase();
+    for (const def of MELI_REQUIRED_ATTRIBUTES[categoryId] || []) {
+      const select = document.getElementById(`publish-attr-${def.id}`);
+      const valueId = select?.value || "";
+      if (def.required && !valueId) {
+        const msg = `Mercado Libre exige el campo "${def.label}" para la categoría ${categoryId}: selecciónalo antes de publicar.`;
+        if (errBoxEarly) {
+          errBoxEarly.textContent = msg;
+          errBoxEarly.classList.remove("hidden");
+        }
+        showToast(msg, "error");
+        btn.disabled = false;
+        btn.innerHTML = "Publicar en MeLi";
+        return;
+      }
+      if (valueId) {
+        const valueName = select.options[select.selectedIndex]?.dataset.valueName || undefined;
+        requiredAttrs.push({ id: def.id, value_id: valueId, ...(valueName ? { value_name: valueName } : {}) });
+      }
+    }
 
     const body = {
       meli_account_id: document.getElementById("publish-account-select").value,
@@ -1109,6 +1189,9 @@ async function openPublishModal(product) {
       available_quantity: parseInt(document.getElementById("publish-quantity").value, 10),
       listing_type_id: document.getElementById("publish-listing-type").value,
       description: document.getElementById("publish-description").value.trim() || undefined,
+      // Atributos extra del catálogo (p. ej. CONNECTOR_TYPE): el backend los
+      // pasa tal cual en el "attributes" del POST /items.
+      ...(requiredAttrs.length ? { attributes: requiredAttrs } : {}),
     };
 
     try {

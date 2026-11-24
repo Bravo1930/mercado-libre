@@ -328,6 +328,125 @@ def test_publish_surfaces_meli_cause_detail(publish_context, monkeypatch):
     assert "Field required: description" in body["error"]
 
 
+def test_publish_sends_extra_attributes_with_value_id(publish_context, monkeypatch):
+    """Los atributos extra del request viajan tal cual (con value_id y
+    value_name) en el "attributes" del POST /items. Caso real 2026-11-23:
+    MLM429747 (Cargadores para Celulares) exige CONNECTOR_TYPE ("Tipo de
+    conector") y sin él MeLi responde 400 "The attributes [CONNECTOR_TYPE]
+    are required for category MLM429747..."."""
+    client, company_id, headers, account_id, _factory = publish_context
+    product = _create_charger_product(client, company_id, headers)
+
+    fake = FakeConnector()
+    monkeypatch.setattr(
+        "src.services.catalog_service.MercadoLibreConnector",
+        lambda *args, **kwargs: fake,
+    )
+
+    res = client.post(
+        f"/api/v1/products/{product['id']}/publish-meli",
+        json={
+            "meli_account_id": account_id,
+            "category_id": "MLM429747",
+            "attributes": [
+                {"id": "CONNECTOR_TYPE", "value_id": "2113108", "value_name": "USB-C"}
+            ],
+        },
+        headers=headers,
+    )
+    assert res.status_code == 201, res.text
+
+    assert len(fake.items.created_payloads) == 1
+    sent = fake.items.created_payloads[0]
+    # family_name sigue siendo el título y "title" NO se manda (fix 8).
+    assert "title" not in sent
+    assert sent["family_name"] == "Cargador USB-C 2 en 1 PD 20W Doble Puerto"
+    assert sent["category_id"] == "MLM429747"
+    # El atributo extra llega íntegro, sin perder el value_id del catálogo.
+    assert {
+        "id": "CONNECTOR_TYPE",
+        "value_id": "2113108",
+        "value_name": "USB-C",
+    } in sent["attributes"]
+    # Los atributos automáticos (BRAND/MODEL/GTIN/COLOR) siguen presentes.
+    attrs = {a["id"]: a.get("value_name") for a in sent["attributes"]}
+    assert attrs["BRAND"] == "Ele-Gate"
+    assert attrs["GTIN"] == "07503050554934"
+
+
+def test_publish_attribute_with_only_value_id(publish_context, monkeypatch):
+    """Un atributo de catálogo puede venir solo con value_id (sin value_name)
+    y se pasa tal cual a MeLi."""
+    client, company_id, headers, account_id, _factory = publish_context
+    product = _create_charger_product(client, company_id, headers)
+
+    fake = FakeConnector()
+    monkeypatch.setattr(
+        "src.services.catalog_service.MercadoLibreConnector",
+        lambda *args, **kwargs: fake,
+    )
+
+    res = client.post(
+        f"/api/v1/products/{product['id']}/publish-meli",
+        json={
+            "meli_account_id": account_id,
+            "category_id": "MLM429747",
+            "attributes": [{"id": "CONNECTOR_TYPE", "value_id": "2113108"}],
+        },
+        headers=headers,
+    )
+    assert res.status_code == 201, res.text
+    sent = fake.items.created_payloads[0]
+    assert {"id": "CONNECTOR_TYPE", "value_id": "2113108"} in sent["attributes"]
+
+
+def test_publish_attribute_without_any_value_is_rejected(publish_context, monkeypatch):
+    """Un atributo sin value_id ni value_name no dice nada: el esquema lo
+    rechaza con 422 antes de llegar a MeLi."""
+    client, company_id, headers, account_id, _factory = publish_context
+    product = _create_charger_product(client, company_id, headers)
+    monkeypatch.setattr(
+        "src.services.catalog_service.MercadoLibreConnector",
+        lambda *args, **kwargs: FakeConnector(),
+    )
+
+    res = client.post(
+        f"/api/v1/products/{product['id']}/publish-meli",
+        json={
+            "meli_account_id": account_id,
+            "category_id": "MLM429747",
+            "attributes": [{"id": "CONNECTOR_TYPE"}],
+        },
+        headers=headers,
+    )
+    assert res.status_code == 422
+    assert res.json()["code"] == "VALIDATION_ERROR"
+
+
+def test_publish_without_attributes_unchanged(publish_context, monkeypatch):
+    """Sin atributos extra, el payload es exactamente el de antes (fix 8):
+    solo los 4 automáticos, family_name y sin "title"."""
+    client, company_id, headers, account_id, _factory = publish_context
+    product = _create_charger_product(client, company_id, headers)
+
+    fake = FakeConnector()
+    monkeypatch.setattr(
+        "src.services.catalog_service.MercadoLibreConnector",
+        lambda *args, **kwargs: fake,
+    )
+
+    res = client.post(
+        f"/api/v1/products/{product['id']}/publish-meli",
+        json={"meli_account_id": account_id, "category_id": "MLM1234"},
+        headers=headers,
+    )
+    assert res.status_code == 201, res.text
+    sent = fake.items.created_payloads[0]
+    assert "title" not in sent
+    assert sent["family_name"] == "Cargador USB-C 2 en 1 PD 20W Doble Puerto"
+    assert {a["id"] for a in sent["attributes"]} == {"BRAND", "MODEL", "GTIN", "COLOR"}
+
+
 def test_publish_surfaces_meli_error_code_when_cause_is_empty(publish_context, monkeypatch):
     """En body.invalid_fields MeLi devuelve cause=[] y el campo inválido vive
     en 'error' (p. ej. "The fields [title] are invalid..."): ese detalle debe

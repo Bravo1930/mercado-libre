@@ -649,19 +649,30 @@ class CatalogService:
             )
 
         # Atributos: BRAND / MODEL / GTIN / COLOR se completan solos cuando
-        # existen; los extras del request prevalecen si repiten un mismo id.
-        attributes: dict[str, str] = {}
+        # existen; los extras del request prevalecen si repiten un mismo id y
+        # viajan TAL CUAL (con value_id y/o value_name) en el POST /items —
+        # MeLi los valida. Esto es lo que permite mandar atributos de catálogo
+        # obligatorios como CONNECTOR_TYPE ("Tipo de conector") en MLM429747:
+        # sin él MeLi responde 400 ("The attributes [CONNECTOR_TYPE] are
+        # required for category MLM429747..."). Antes los extras se reducían
+        # a value_name y se perdía el value_id del catálogo.
+        attributes: dict[str, dict] = {}
         if product.brand:
-            attributes["BRAND"] = product.brand
+            attributes["BRAND"] = {"id": "BRAND", "value_name": product.brand}
         if product.model:
-            attributes["MODEL"] = product.model
+            attributes["MODEL"] = {"id": "MODEL", "value_name": product.model}
         if variant.barcode_ean:
-            attributes["GTIN"] = variant.barcode_ean
+            attributes["GTIN"] = {"id": "GTIN", "value_name": variant.barcode_ean}
         variant_color = (variant.attributes or {}).get("color")
         if variant_color:
-            attributes["COLOR"] = str(variant_color)
+            attributes["COLOR"] = {"id": "COLOR", "value_name": str(variant_color)}
         for extra in payload.attributes or []:
-            attributes[extra.id] = extra.value_name
+            attr: dict[str, str] = {"id": extra.id}
+            if extra.value_id:
+                attr["value_id"] = extra.value_id
+            if extra.value_name:
+                attr["value_name"] = extra.value_name
+            attributes[extra.id] = attr
 
         meli_payload: dict[str, Any] = {
             # NO se manda "title": en el modelo User Products de MeLi (el que
@@ -690,9 +701,7 @@ class CatalogService:
             "shipping": {"mode": "me2", "local_pick_up": False, "free_shipping": False},
         }
         if attributes:
-            meli_payload["attributes"] = [
-                {"id": attr_id, "value_name": value} for attr_id, value in attributes.items()
-            ]
+            meli_payload["attributes"] = list(attributes.values())
         return meli_payload, title, price, pictures
 
     @classmethod

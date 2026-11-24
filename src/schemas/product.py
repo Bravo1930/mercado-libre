@@ -4,7 +4,7 @@ import re
 import uuid
 from datetime import datetime
 from typing import Any
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 
 from src.schemas.common import BaseSchema
 
@@ -261,8 +261,19 @@ class ImportSummaryResponse(BaseSchema):
 # 4b. ESQUEMAS DE PUBLICACIÓN EN MERCADO LIBRE (POST /items)
 # ------------------------------------------------------------------------------
 class MeliAttributePayload(BaseSchema):
-    id: str = Field(..., min_length=1, description="ID oficial del atributo MeLi (e.g. BRAND, MODEL, GTIN, COLOR)")
-    value_name: str = Field(..., min_length=1, description="Valor del atributo")
+    id: str = Field(..., min_length=1, description="ID oficial del atributo MeLi (e.g. BRAND, MODEL, GTIN, COLOR, CONNECTOR_TYPE)")
+    # Para atributos de catálogo con valores predefinidos (e.g. CONNECTOR_TYPE
+    # en MLM429747) MeLi acepta value_id (el ID del valor en el catálogo) y/o
+    # value_name. Se pasan tal cual en el POST /items; MeLi valida. Al menos
+    # uno de los dos debe venir (si no, el atributo no dice nada).
+    value_id: str | None = Field(default=None, description="ID del valor en el catálogo MeLi (e.g. 2113108 = USB-C)")
+    value_name: str | None = Field(default=None, description="Valor del atributo")
+
+    @model_validator(mode="after")
+    def _require_value(self):
+        if not (self.value_id or "").strip() and not (self.value_name or "").strip():
+            raise ValueError("El atributo debe traer value_id o value_name")
+        return self
 
 
 class MeliPublishRequest(BaseSchema):
