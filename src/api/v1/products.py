@@ -390,6 +390,13 @@ async def update_variant(
     if payload.is_active is not None:
         variant.is_active = payload.is_active
 
+    # Fix 9 ítem 5: si cambió el precio de la variante, refrescar el
+    # "Precio MeLi" guardado en sus publicaciones vinculadas.
+    if payload.sale_price is not None and float(payload.sale_price) > 0:
+        await CatalogService.refresh_meli_mapping_prices(
+            session, {variant.id: float(payload.sale_price)}
+        )
+
     await session.flush()
 
     await record_audit_event(

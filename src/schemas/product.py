@@ -1,11 +1,26 @@
 """Esquemas Pydantic para el Catálogo Maestro de Productos, Variantes y SKUs de Mercado Libre."""
 
+import re
 import uuid
 from datetime import datetime
 from typing import Any
-from pydantic import Field
+from pydantic import Field, field_validator
 
 from src.schemas.common import BaseSchema
+
+
+def normalize_meli_item_id(value: str | None) -> str | None:
+    """Normaliza un ID de publicación MeLi a su forma canónica (MLM + dígitos).
+
+    Acepta "MLM-6636763518", "mlm 6636763518" o "MLM6636763518" y devuelve
+    "MLM6636763518". Sin esto, el mismo ítem guardado con y sin guion se
+    trataba como dos publicaciones distintas (y el formulario de vinculación
+    rechazaba el ID con guion con un 422 de validación).
+    """
+    if value is None:
+        return None
+    cleaned = re.sub(r"[\s\-_]", "", str(value)).upper()
+    return cleaned or None
 
 
 # ------------------------------------------------------------------------------
@@ -115,6 +130,12 @@ class ProductUpdate(BaseSchema):
     images: list[str] | None = None
     is_active: bool | None = None
 
+    # Código de barras de la VARIANTE PRINCIPAL del producto. El formulario
+    # "Editar Producto" no tenía campo para el EAN y la única vía era agregar
+    # otra variante; con esto el EAN se corrige desde la edición del producto
+    # (lo aplica CatalogService.update_product sobre la variante primaria).
+    barcode_ean: str | None = Field(default=None, max_length=50)
+
 
 class ProductResponse(BaseSchema):
     id: uuid.UUID
@@ -163,6 +184,13 @@ class ProductSKUCreate(BaseSchema):
     listing_type_id: str = "gold_special"
     logistic_type: str = "fulfillment"
 
+    @field_validator("meli_item_id", mode="before")
+    @classmethod
+    def _normalize_item_id(cls, value: Any) -> Any:
+        # Aceptar "MLM-6636763518" además de "MLM6636763518" (antes el
+        # patrón ^MLM\d+$ rechazaba el guion con un 422).
+        return normalize_meli_item_id(value)
+
 
 class ProductSKUResponse(BaseSchema):
     id: uuid.UUID
@@ -192,9 +220,14 @@ class MeliItemVariationPayload(BaseSchema):
 
 class MeliItemImportPayload(BaseSchema):
     id: str = Field(..., description="ID de publicación MeLi (e.g. MLM123456789)")
-    title: str = Field(..., description="Título de la publicación")
+    # Título y precio son OPCIONALES: desde el fix 9 el backend obtiene los
+    # datos REALES de la publicación con GET /items/{id} y los valores que
+    # mandaba el frontend (precio fijo 699.00, EAN aleatorio, título
+    # "Publicación MeLi Sincronizada") se ignoran. Se conservan los campos
+    # solo por compatibilidad con clientes que aún manden el payload completo.
+    title: str = Field(default="", description="Título de la publicación")
     seller_custom_field: str | None = Field(default=None, description="SKU del vendedor en MeLi")
-    price: float = Field(..., ge=0.0)
+    price: float | None = Field(default=None, ge=0.0)
     category_id: str | None = None
     brand: str | None = None
     model: str | None = None
@@ -204,6 +237,11 @@ class MeliItemImportPayload(BaseSchema):
     dimensions: dict[str, Any] | None = None
     weight_kg: float | None = None
     variations: list[MeliItemVariationPayload] = Field(default_factory=list)
+
+    @field_validator("id", mode="before")
+    @classmethod
+    def _normalize_id(cls, value: Any) -> Any:
+        return normalize_meli_item_id(value)
 
 
 class MeliImportRequest(BaseSchema):

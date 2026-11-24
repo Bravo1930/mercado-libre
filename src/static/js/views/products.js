@@ -426,6 +426,8 @@ function renderProductsTable() {
 // -----------------------------------------------------------------------------
 function openProductFormModal(product = null) {
   const isEdit = !!product;
+  // Variante primaria (para editar su código de barras desde este formulario).
+  const primaryVariant = product?.variants?.find(v => v.is_active) || product?.variants?.[0] || null;
   const currentCompany = state.currentCompany;
   if (!currentCompany) {
     showToast("Selecciona una empresa primero", "error");
@@ -540,7 +542,23 @@ function openProductFormModal(product = null) {
             </div>
           </div>
         </div>
-      ` : ''}
+      ` : `
+        <!-- Código de Barras de la Variante Primaria (solo edición) -->
+        <div class="p-3 bg-blue-50 border border-blue-200 rounded-xl space-y-2">
+          <div class="text-xs font-bold text-blue-900 uppercase">Variante Primaria</div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-[11px] font-semibold text-slate-700 mb-1">SKU (no editable aquí)</label>
+              <input type="text" class="input-field text-xs font-mono font-bold uppercase bg-slate-100" value="${(primaryVariant?.sku || '').replace(/"/g, "&quot;")}" disabled />
+            </div>
+            <div>
+              <label class="block text-[11px] font-semibold text-slate-700 mb-1">Código de Barras (EAN-13 / UPC)</label>
+              <input type="text" id="variant-barcode-input" class="input-field text-xs font-mono" value="${(primaryVariant?.barcode_ean || '').replace(/"/g, "&quot;")}" placeholder="e.g. 7501234567890" />
+            </div>
+          </div>
+          <div class="text-[11px] text-slate-500">Si el EAN que trajo la importación está mal, corrígelo aquí: se guarda en la variante primaria del producto.</div>
+        </div>
+      `}
 
       <div class="flex justify-end gap-2 pt-3 border-t border-slate-100">
         <button type="button" id="btn-cancel-prod-form" class="btn-secondary">Cancelar</button>
@@ -581,11 +599,14 @@ function openProductFormModal(product = null) {
 
     try {
       if (isEdit) {
+        const barcodeInput = document.getElementById("variant-barcode-input");
         const updatePayload = {
           name, brand, model, category, unit_of_measure: unitOfMeasure,
           cost_price: costPrice, sale_price: salePrice, wholesale_price: wholesalePrice,
           weight_kg: weightKg, length_cm: lengthCm, width_cm: widthCm, height_cm: heightCm,
-          warehouse_location: location, description, images
+          warehouse_location: location, description, images,
+          // Código de barras de la variante primaria (se guarda con el producto).
+          ...(barcodeInput ? { barcode_ean: barcodeInput.value.trim() || null } : {}),
         };
         await api.put(`/products/${product.id}`, updatePayload);
         showToast("Producto actualizado exitosamente", "success");
@@ -823,7 +844,7 @@ async function openMappingsModal(product) {
     btn.disabled = true;
 
     const variantId = document.getElementById("map-variant-select").value;
-    const meliItemId = document.getElementById("map-meli-id").value.trim().toUpperCase();
+    const meliItemId = document.getElementById("map-meli-id").value.trim().replace(/[\s\-_]/g, "").toUpperCase();
     const price = parseFloat(document.getElementById("map-meli-price").value);
     const listingType = document.getElementById("map-listing-type").value;
     const logisticType = document.getElementById("map-logistic-type").value;
@@ -896,9 +917,9 @@ async function openMeliImportModal() {
     <form id="meli-import-form" class="space-y-4">
       <div class="bg-yellow-50 border border-yellow-200 text-yellow-900 p-3 rounded-xl text-xs leading-relaxed">
         <strong>Importador Oficial de Mercado Libre México</strong><br />
-        El ERP sincronizará las publicaciones activas, extrayendo título, marca, modelo, EAN, precios, fotografías y dimensiones.
+        El ERP consulta cada publicación en Mercado Libre y trae sus datos reales: título, marca, modelo, EAN, precio, fotografías y dimensiones.
         <div class="mt-1 font-semibold text-emerald-800">
-          ✔ Protección Anti-Duplicados activa: Si el SKU o EAN ya existe en el ERP, se actualizarán los precios y fotos sin crear duplicados.
+          ✔ Protección Anti-Duplicados activa: si la publicación ya está vinculada, se actualiza sin duplicar y sin sobrescribir tus precios ni costos. Cada publicación crea su propio producto.
         </div>
       </div>
 
@@ -936,19 +957,20 @@ async function openMeliImportModal() {
     const accountId = document.getElementById("import-account-select").value;
     const itemsInput = document.getElementById("import-specific-items").value.trim();
 
-    // Generar payloads de sincronización de MeLi
-    const itemIds = itemsInput ? itemsInput.split(/[\s,]+/).filter(Boolean) : [`MLM${Math.floor(1000000000 + Math.random() * 9000000000)}`];
-    const itemsPayload = itemIds.map(id => ({
-      id,
-      title: `Publicación MeLi Sincronizada · ${id}`,
-      seller_custom_field: `SKU-${id.slice(3, 8)}`,
-      price: 699.00,
-      brand: "Marca MeLi",
-      model: "2026",
-      barcode_ean: `750${Math.floor(1000000000 + Math.random() * 9000000000)}`,
-      weight_kg: 0.450,
-      pictures: ["https://http2.mlstatic.com/D_NQ_NP_sample.webp"]
-    }));
+    // Solo se mandan los IDs: el backend consulta los datos REALES de cada
+    // publicación en MeLi (GET /items/{id}). Antes el navegador inventaba el
+    // payload (precio fijo 699.00, EAN aleatorio y SKU "SKU-"+id[3:8]), y eso
+    // creó productos con precio $699 y fusionó publicaciones distintas.
+    const itemIds = itemsInput
+      ? itemsInput.split(/[\s,]+/).filter(Boolean).map(id => id.replace(/[\s\-_]/g, "").toUpperCase())
+      : [];
+    if (itemIds.length === 0) {
+      showToast("Ingresa al menos un ID de publicación MeLi (MLM...).", "warning");
+      btn.disabled = false;
+      btn.innerHTML = `${icons.refresh} Iniciar Importación MeLi`;
+      return;
+    }
+    const itemsPayload = itemIds.map(id => ({ id }));
 
     try {
       const res = await api.post("/products/import-meli", {

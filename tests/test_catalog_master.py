@@ -228,7 +228,65 @@ def test_search_by_sku_barcode_and_name(catalog_context):
     assert len(search_name.json()["items"]) >= 1
 
 
-def test_import_meli_products_anti_duplicate_flow(catalog_context):
+@pytest.fixture
+def fake_meli_connector(monkeypatch):
+    """Sustituye el conector real de MeLi por uno falso con datos prefijados.
+
+    Devuelve el dict donde el test registra las publicaciones que el falso
+    GET /items/{id} debe devolver (clave = ID canónico sin guion).
+    """
+    store: dict = {}
+
+    class FakeItems:
+        async def get_item(self, item_id):
+            if item_id not in store:
+                raise Exception(f"Item {item_id} no encontrado en MeLi")
+            return dict(store[item_id])
+
+    class FakeConnector:
+        def __init__(self, *args, **kwargs):
+            self.items = FakeItems()
+
+        async def check_and_proactively_refresh(self):
+            return True
+
+    import src.services.catalog_service as catalog_service
+    monkeypatch.setattr(catalog_service, "MercadoLibreConnector", FakeConnector)
+    return store
+
+
+def _meli_item_dict(
+    item_id,
+    title,
+    price,
+    seller_custom_field=None,
+    gtin=None,
+    brand="ErgoTech",
+    model="EV-300",
+):
+    """Arma el detalle oficial GET /items/{id} que devuelve MeLi."""
+    attributes = []
+    if brand:
+        attributes.append({"id": "BRAND", "value_name": brand})
+    if model:
+        attributes.append({"id": "MODEL", "value_name": model})
+    if gtin:
+        attributes.append({"id": "GTIN", "value_name": gtin})
+    return {
+        "id": item_id,
+        "title": title,
+        "price": price,
+        "seller_custom_field": seller_custom_field,
+        "category_id": "MLM1234",
+        "status": "active",
+        "listing_type_id": "free",
+        "shipping": {"logistic_type": "me2"},
+        "attributes": attributes,
+        "pictures": [{"secure_url": "https://meli.com/item.jpg"}],
+    }
+
+
+def test_import_meli_products_anti_duplicate_flow(catalog_context, fake_meli_connector):
     """Comprueba la importación desde Mercado Libre evitando crear duplicados si el SKU ya existe."""
     client, company_id, headers = catalog_context
 
@@ -244,43 +302,314 @@ def test_import_meli_products_anti_duplicate_flow(catalog_context):
     assert meli_acc_res.status_code == 201
     account_id = meli_acc_res.json()["id"]
 
+    # La publicación REAL en MeLi (el backend la consulta con GET /items/{id}).
+    fake_meli_connector["MLM1122334455"] = _meli_item_dict(
+        "MLM1122334455",
+        "Mouse Ergonómico Inalámbrico Vertical",
+        450.00,
+        seller_custom_field="MOUSE-ERG-VERT",
+        gtin="7505556667778",
+    )
+
+    # El frontend solo manda los IDs; título/precio/EAN los trae el backend de MeLi.
     import_payload = {
         "meli_account_id": account_id,
-        "items": [
-            {
-                "id": "MLM1122334455",
-                "title": "Mouse Ergonómico Inalámbrico Vertical",
-                "seller_custom_field": "MOUSE-ERG-VERT",
-                "price": 450.00,
-                "brand": "ErgoTech",
-                "model": "EV-300",
-                "barcode_ean": "7505556667778",
-                "pictures": ["https://meli.com/mouse.jpg"],
-            }
-        ],
+        "items": [{"id": "MLM1122334455"}],
     }
 
-    # 1. Primera importación -> debe CREAR
+    # 1. Primera importación -> debe CREAR con los datos reales de MeLi
     first_import = client.post("/api/v1/products/import-meli", json=import_payload, headers=headers)
     assert first_import.status_code == 200
     data1 = first_import.json()
     assert data1["created"] == 1
     assert data1["updated"] == 0
     assert data1["linked_mappings"] == 1
+    assert data1["errors"] == []
 
-    # 2. Segunda importación con mismo ID y SKU pero precio actualizado -> debe ACTUALIZAR sin duplicar
-    import_payload["items"][0]["price"] = 499.00
+    # Verificar que solo exista UN producto en el catálogo, con precio y EAN reales
+    check_res = client.get("/api/v1/products?sku=MOUSE-ERG-VERT", headers=headers)
+    items = check_res.json()["items"]
+    assert len(items) == 1
+    assert items[0]["sale_price"] == 450.00
+    assert items[0]["variants"][0]["barcode_ean"] == "7505556667778"
+    prod_id = items[0]["id"]
+
+    # 2. Segunda importación con el precio CAMBIADO en MeLi (499.00):
+    # debe ACTUALIZAR sin duplicar y SIN sobrescribir el precio del producto.
+    fake_meli_connector["MLM1122334455"]["price"] = 499.00
     second_import = client.post("/api/v1/products/import-meli", json=import_payload, headers=headers)
     assert second_import.status_code == 200
     data2 = second_import.json()
     assert data2["created"] == 0
     assert data2["updated"] == 1
 
-    # Verificar que solo exista UN producto en el catálogo
-    check_res = client.get("/api/v1/products?sku=MOUSE-ERG-VERT", headers=headers)
-    items = check_res.json()["items"]
-    assert len(items) == 1
-    assert items[0]["sale_price"] == 499.00
+    check_res2 = client.get("/api/v1/products?sku=MOUSE-ERG-VERT", headers=headers)
+    items2 = check_res2.json()["items"]
+    assert len(items2) == 1
+    # Fix 9: el re-import NUNCA sobrescribe el precio del producto.
+    assert items2[0]["sale_price"] == 450.00
+
+    # Pero el precio guardado en el registro vinculado SÍ refleja MeLi.
+    mappings_res = client.get(f"/api/v1/products/{prod_id}/mappings", headers=headers)
+    assert mappings_res.status_code == 200
+    assert len(mappings_res.json()) == 1
+    assert mappings_res.json()[0]["price"] == 499.00
+    assert mappings_res.json()[0]["meli_item_id"] == "MLM1122334455"
+
+
+def test_import_meli_does_not_merge_distinct_items_with_shared_sku(catalog_context, fake_meli_connector):
+    """Fix 9: dos publicaciones distintas con el mismo seller_custom_field
+    (caso real 2026-11-23: MLM-6636669962 y MLM-6636763518, ambas con
+    "SKU--6636") deben crear DOS productos, nunca fusionarse en uno."""
+    client, company_id, headers = catalog_context
+
+    meli_acc_res = client.post("/api/v1/meli-accounts", json={
+        "company_id": company_id,
+        "meli_user_id": 9988776656,
+        "nickname": "TiendaMergeTest",
+        "access_token_plain": "APP_USR-TEST",
+        "refresh_token_plain": "TG-TEST",
+        "expires_in_seconds": 21600,
+    }, headers=headers)
+    assert meli_acc_res.status_code == 201
+    account_id = meli_acc_res.json()["id"]
+
+    fake_meli_connector["MLM6636669962"] = _meli_item_dict(
+        "MLM6636669962", "Cargador USB-C 20W Carga Rápida Pared", 99.00,
+        seller_custom_field="SKU--6636", gtin="07503049021683",
+        brand="Ele-Gate", model="CH.101",
+    )
+    fake_meli_connector["MLM6636763518"] = _meli_item_dict(
+        "MLM6636763518", "Cargador USB-C 2 en 1 PD 20W Doble Puerto", 129.00,
+        seller_custom_field="SKU--6636", gtin="07503050554934",
+        brand="Ele-Gate", model="CH.102",
+    )
+
+    res = client.post("/api/v1/products/import-meli", json={
+        "meli_account_id": account_id,
+        "items": [{"id": "MLM-6636669962"}, {"id": "MLM-6636763518"}],
+    }, headers=headers)
+    assert res.status_code == 200
+    data = res.json()
+    assert data["created"] == 2
+    assert data["updated"] == 0
+    assert data["linked_mappings"] == 2
+    assert data["errors"] == []
+
+    catalog_res = client.get("/api/v1/products?limit=50", headers=headers)
+    products = catalog_res.json()["items"]
+    assert len(products) == 2
+    by_price = sorted(p["sale_price"] for p in products)
+    assert by_price == [99.00, 129.00]
+    # Cada producto tiene su propio GTIN real, no uno inventado.
+    gtins = sorted(p["variants"][0]["barcode_ean"] for p in products)
+    assert gtins == ["07503049021683", "07503050554934"]
+
+
+def test_import_meli_uses_real_price_not_fabricated_699(catalog_context, fake_meli_connector):
+    """Fix 9: la importación usa el precio REAL de MeLi; el viejo frontend
+    mandaba price 699.00 fijo y el backend lo creía (costo 699*0.50=349.50)."""
+    client, company_id, headers = catalog_context
+
+    meli_acc_res = client.post("/api/v1/meli-accounts", json={
+        "company_id": company_id,
+        "meli_user_id": 9988776657,
+        "nickname": "TiendaPrecioTest",
+        "access_token_plain": "APP_USR-TEST",
+        "refresh_token_plain": "TG-TEST",
+        "expires_in_seconds": 21600,
+    }, headers=headers)
+    account_id = meli_acc_res.json()["id"]
+
+    fake_meli_connector["MLM3842048431"] = _meli_item_dict(
+        "MLM3842048431", "Cable Tipo C a Lightning 1m", 99.00,
+        gtin="07503050696559", brand="Ele-Gate", model="WI.156",
+    )
+
+    # Aunque el payload trajera valores viejos/fabricados, el backend los ignora.
+    res = client.post("/api/v1/products/import-meli", json={
+        "meli_account_id": account_id,
+        "items": [{
+            "id": "MLM3842048431",
+            "title": "Publicación MeLi Sincronizada · MLM3842048431",
+            "seller_custom_field": "SKU--3842",
+            "price": 699.00,
+            "brand": "Marca MeLi",
+            "model": "2026",
+            "barcode_ean": "7501727161750",
+        }],
+    }, headers=headers)
+    assert res.status_code == 200
+    assert res.json()["created"] == 1
+
+    check_res = client.get("/api/v1/products?limit=50", headers=headers)
+    product = check_res.json()["items"][0]
+    assert product["sale_price"] == 99.00
+    assert product["cost_price"] == 49.50  # Estimado inicial: 50% del precio REAL
+    assert product["variants"][0]["barcode_ean"] == "07503050696559"
+    assert product["variants"][0]["sku"] == "MELI-MLM3842048431"
+
+
+def test_import_meli_accepts_hyphenated_item_id(catalog_context, fake_meli_connector):
+    """Fix 9: importar con el ID con guion ("MLM-1122334455") funciona y el
+    mapeo queda guardado en forma canónica ("MLM1122334455")."""
+    client, company_id, headers = catalog_context
+
+    meli_acc_res = client.post("/api/v1/meli-accounts", json={
+        "company_id": company_id,
+        "meli_user_id": 9988776658,
+        "nickname": "TiendaGuionTest",
+        "access_token_plain": "APP_USR-TEST",
+        "refresh_token_plain": "TG-TEST",
+        "expires_in_seconds": 21600,
+    }, headers=headers)
+    account_id = meli_acc_res.json()["id"]
+
+    fake_meli_connector["MLM1122334455"] = _meli_item_dict(
+        "MLM1122334455", "Mouse Ergonómico Inalámbrico Vertical", 450.00,
+        gtin="7505556667778",
+    )
+
+    res = client.post("/api/v1/products/import-meli", json={
+        "meli_account_id": account_id,
+        "items": [{"id": "MLM-1122334455"}],
+    }, headers=headers)
+    assert res.status_code == 200
+    assert res.json()["created"] == 1
+
+    check_res = client.get("/api/v1/products?limit=50", headers=headers)
+    prod_id = check_res.json()["items"][0]["id"]
+    mappings_res = client.get(f"/api/v1/products/{prod_id}/mappings", headers=headers)
+    assert mappings_res.json()[0]["meli_item_id"] == "MLM1122334455"
+
+
+def test_edit_product_updates_primary_variant_barcode(catalog_context):
+    """Fix 9: el formulario 'Editar Producto' ahora permite corregir el EAN
+    de la variante primaria (antes no había campo y el EAN malo quedaba fijo)."""
+    client, company_id, headers = catalog_context
+
+    create_res = client.post("/api/v1/products", json={
+        "company_id": company_id,
+        "name": "Cable Tipo C a Lightning 1m",
+        "brand": "Ele-Gate",
+        "model": "WI.156",
+        "sale_price": 99.00,
+        "cost_price": 35.00,
+        "variants": [{
+            "variant_name": "Principal",
+            "sku": "WI.156",
+            "barcode_ean": "7501727161750",  # EAN malo que dejó la importación
+            "cogs_cost": 35.00,
+            "sale_price": 99.00,
+        }],
+    }, headers=headers)
+    assert create_res.status_code == 201
+    prod_id = create_res.json()["id"]
+
+    # Corregir el EAN desde la edición del producto
+    update_res = client.put(f"/api/v1/products/{prod_id}", json={
+        "barcode_ean": "07503050696559",
+    }, headers=headers)
+    assert update_res.status_code == 200
+
+    check_res = client.get(f"/api/v1/products/{prod_id}", headers=headers)
+    assert check_res.json()["variants"][0]["barcode_ean"] == "07503050696559"
+
+    # El EAN no se puede duplicar en otro producto de la empresa
+    other_res = client.post("/api/v1/products", json={
+        "company_id": company_id,
+        "name": "Otro cable",
+        "sale_price": 50.00,
+        "variants": [{
+            "variant_name": "Principal",
+            "sku": "OTRO-01",
+            "barcode_ean": "7509999999999",
+        }],
+    }, headers=headers)
+    other_id = other_res.json()["id"]
+    dup_res = client.put(f"/api/v1/products/{other_id}", json={
+        "barcode_ean": "07503050696559",
+    }, headers=headers)
+    assert dup_res.status_code == 409
+
+
+def test_link_meli_publication_accepts_hyphenated_id(catalog_context):
+    """Fix 9: 'Vincular publicación existente' acepta 'MLM-5001' (antes 422)
+    y lo guarda canónico 'MLM5001'."""
+    client, company_id, headers = catalog_context
+
+    acc_res = client.post("/api/v1/meli-accounts", json={
+        "company_id": company_id,
+        "meli_user_id": 9988776659,
+        "nickname": "TiendaVinculoTest",
+        "access_token_plain": "APP_USR-TEST",
+        "refresh_token_plain": "TG-TEST",
+        "expires_in_seconds": 21600,
+    }, headers=headers)
+    acc_id = acc_res.json()["id"]
+
+    p_res = client.post("/api/v1/products", json={
+        "company_id": company_id,
+        "name": "Cargador USB-C 2 en 1",
+        "sale_price": 129.00,
+        "variants": [{"variant_name": "Principal", "sku": "CH.102"}],
+    }, headers=headers)
+    prod = p_res.json()
+    variant_id = prod["variants"][0]["id"]
+
+    map_res = client.post("/api/v1/products/mappings", json={
+        "meli_account_id": acc_id,
+        "variant_id": variant_id,
+        "meli_item_id": "MLM-5001",
+        "seller_sku": "CH.102",
+        "price": 129.00,
+        "listing_type_id": "gold_special",
+    }, headers=headers)
+    assert map_res.status_code == 201
+    assert map_res.json()["meli_item_id"] == "MLM5001"
+
+
+def test_edit_product_refreshes_linked_meli_price(catalog_context):
+    """Fix 9: al editar el precio del producto, el 'Precio MeLi' guardado en
+    sus publicaciones vinculadas se refresca (antes quedaba el $699 viejo)."""
+    client, company_id, headers = catalog_context
+
+    acc_res = client.post("/api/v1/meli-accounts", json={
+        "company_id": company_id,
+        "meli_user_id": 9988776660,
+        "nickname": "TiendaPrecioMeLiTest",
+        "access_token_plain": "APP_USR-TEST",
+        "refresh_token_plain": "TG-TEST",
+        "expires_in_seconds": 21600,
+    }, headers=headers)
+    acc_id = acc_res.json()["id"]
+
+    p_res = client.post("/api/v1/products", json={
+        "company_id": company_id,
+        "name": "Cargador USB-C 20W",
+        "sale_price": 699.00,
+        "variants": [{"variant_name": "Principal", "sku": "CH.101"}],
+    }, headers=headers)
+    prod = p_res.json()
+    prod_id = prod["id"]
+    variant_id = prod["variants"][0]["id"]
+
+    map_res = client.post("/api/v1/products/mappings", json={
+        "meli_account_id": acc_id,
+        "variant_id": variant_id,
+        "meli_item_id": "MLM6636669962",
+        "seller_sku": "CH.101",
+        "price": 699.00,
+        "listing_type_id": "gold_special",
+    }, headers=headers)
+    assert map_res.status_code == 201
+
+    # Corregir el precio del producto: el registro vinculado debe refrescarse.
+    update_res = client.put(f"/api/v1/products/{prod_id}", json={"sale_price": 99.00}, headers=headers)
+    assert update_res.status_code == 200
+
+    mappings_res = client.get(f"/api/v1/products/{prod_id}/mappings", headers=headers)
+    assert mappings_res.json()[0]["price"] == 99.00
 
 
 def test_multi_publication_mapping_per_product(catalog_context):

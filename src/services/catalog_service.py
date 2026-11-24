@@ -40,6 +40,7 @@ from src.schemas.product import (
     ProductUpdate,
     ProductVariantCreate,
     ProductVariantUpdate,
+    normalize_meli_item_id,
 )
 
 
@@ -213,12 +214,52 @@ class CatalogService:
         old_values: dict[str, Any] = {}
         new_values: dict[str, Any] = {}
 
+        # El código de barras vive en la VARIANTE primaria, no en el producto
+        # maestro: se saca del dict antes del bucle (Product no tiene ese
+        # atributo) y se aplica aparte, con validación de unicidad.
+        barcode_sent = "barcode_ean" in update_dict
+        barcode_ean = update_dict.pop("barcode_ean", None)
+
         for key, new_val in update_dict.items():
             current_val = getattr(product, key)
             if current_val != new_val:
                 old_values[key] = float(current_val) if hasattr(current_val, "as_tuple") else current_val
                 new_values[key] = float(new_val) if hasattr(new_val, "as_tuple") else new_val
                 setattr(product, key, new_val)
+
+        if barcode_sent:
+            primary_variant = next(
+                (v for v in product.variants if v.is_active), None
+            ) or (product.variants[0] if product.variants else None)
+            if primary_variant is not None:
+                new_barcode = (barcode_ean.strip() if barcode_ean else None) or None
+                if new_barcode and new_barcode != primary_variant.barcode_ean:
+                    stmt_dup = (
+                        select(ProductVariant)
+                        .join(Product, Product.id == ProductVariant.product_id)
+                        .where(
+                            Product.company_id == company_id,
+                            ProductVariant.barcode_ean == new_barcode,
+                            ProductVariant.id != primary_variant.id,
+                        )
+                    )
+                    if (await session.execute(stmt_dup)).scalar_one_or_none():
+                        raise DuplicateEntityException(
+                            f"El código de barras '{new_barcode}' ya está registrado en otro producto."
+                        )
+                if primary_variant.barcode_ean != new_barcode:
+                    old_values["barcode_ean"] = primary_variant.barcode_ean
+                    new_values["barcode_ean"] = new_barcode
+                    primary_variant.barcode_ean = new_barcode
+
+        # Fix 9 ítem 5: al editar el producto, el "Precio MeLi" guardado en
+        # sus publicaciones vinculadas se refresca con el precio vigente del
+        # producto (no con el de la variante, que puede traer un valor viejo).
+        if product.variants and product.sale_price and float(product.sale_price) > 0:
+            await cls.refresh_meli_mapping_prices(
+                session,
+                {v.id: float(product.sale_price) for v in product.variants},
+            )
 
         await session.flush()
 
@@ -275,6 +316,91 @@ class CatalogService:
         )
         return product
 
+    @staticmethod
+    def _parse_meli_item_data(item_data: dict[str, Any]) -> dict[str, Any]:
+        """Extrae los datos reales de una publicación del detalle oficial
+        GET /items/{id} de MeLi (título, precio, SKU del vendedor, marca,
+        modelo, GTIN y fotos)."""
+        attributes: dict[str, str] = {}
+        for attr in item_data.get("attributes") or []:
+            if not isinstance(attr, dict):
+                continue
+            attr_id = str(attr.get("id") or "").upper()
+            value = attr.get("value_name")
+            if attr_id and value:
+                attributes[attr_id] = str(value)
+
+        pictures: list[str] = []
+        for pic in item_data.get("pictures") or []:
+            if isinstance(pic, dict):
+                url = pic.get("secure_url") or pic.get("url")
+                if url:
+                    pictures.append(str(url))
+
+        shipping = item_data.get("shipping") or {}
+        return {
+            "title": (item_data.get("title") or "").strip(),
+            "price": float(item_data.get("price") or 0),
+            "seller_custom_field": item_data.get("seller_custom_field") or None,
+            "category_id": item_data.get("category_id"),
+            "brand": attributes.get("BRAND"),
+            "model": attributes.get("MODEL"),
+            "barcode_ean": attributes.get("GTIN"),
+            "pictures": pictures,
+            "listing_type_id": item_data.get("listing_type_id"),
+            "logistic_type": shipping.get("logistic_type") if isinstance(shipping, dict) else None,
+            "status": item_data.get("status"),
+        }
+
+    @classmethod
+    async def _resolve_import_sku(
+        cls,
+        session: AsyncSession,
+        company_id: uuid.UUID,
+        seller_custom_field: str | None,
+        item_id: str,
+    ) -> str:
+        """SKU para un producto recién importado, sin colisionar con los SKUs
+        ya registrados en la empresa (el SKU es único por empresa)."""
+        candidates: list[str] = []
+        if seller_custom_field and seller_custom_field.strip():
+            candidates.append(seller_custom_field.strip())
+        candidates.append(f"MELI-{item_id}")
+        for candidate in candidates:
+            stmt = (
+                select(ProductVariant)
+                .join(Product, Product.id == ProductVariant.product_id)
+                .where(
+                    Product.company_id == company_id,
+                    func.lower(ProductVariant.sku) == candidate.lower(),
+                )
+            )
+            if not (await session.execute(stmt)).scalar_one_or_none():
+                return candidate
+        return f"MELI-{item_id}-{uuid.uuid4().hex[:6].upper()}"
+
+    @staticmethod
+    async def refresh_meli_mapping_prices(
+        session: AsyncSession,
+        prices_by_variant_id: dict[uuid.UUID, float],
+    ) -> None:
+        """Refresca el "Precio MeLi" guardado en las publicaciones vinculadas
+        con el precio vigente que se le pase por variante (fix 9, ítem 5).
+
+        Sin esto, el registro vinculado seguía mostrando el precio viejo
+        (p. ej. $699.00) aunque el precio del producto ya se hubiera
+        corregido en el catálogo.
+        """
+        if not prices_by_variant_id:
+            return
+        stmt = select(ProductSKU).where(
+            ProductSKU.variant_id.in_(list(prices_by_variant_id.keys()))
+        )
+        for mapping in (await session.execute(stmt)).scalars().all():
+            new_price = prices_by_variant_id.get(mapping.variant_id)
+            if new_price is not None and float(new_price) > 0:
+                mapping.price = float(new_price)
+
     @classmethod
     async def import_from_meli(
         cls,
@@ -283,90 +409,131 @@ class CatalogService:
         meli_account_id: uuid.UUID,
         items: list[MeliItemImportPayload],
         user_id: uuid.UUID,
+        connector: MercadoLibreConnector | None = None,
     ) -> ImportSummaryResponse:
-        """Importa productos desde Mercado Libre evitando crear duplicados y vinculando publicaciones."""
+        """Importa publicaciones desde Mercado Libre con los datos REALES del ítem.
+
+        Fix 9 — causa raíz del desastre del 2026-11-23: el frontend NUNCA
+        consultaba MeLi; fabricaba el payload en el navegador (precio fijo
+        699.00, EAN aleatorio "750" + 10 dígitos, seller_custom_field
+        "SKU-" + id[3:8], que para MLM-6636669962 y MLM-6636763518 daba el
+        MISMO "SKU--6636"). El backend confiaba en esos valores: creaba el
+        producto con precio 699 y costo 699*0.50 = 349.50, emparejaba por SKU
+        y fusionaba dos publicaciones distintas en un solo producto, y al
+        re-importar sobrescribía el precio corregido a mano de vuelta a 699.
+
+        Ahora, por cada ID se consulta GET /items/{id} con el conector
+        oficial y se usan título, precio, GTIN, marca, modelo y fotos
+        reales. El emparejamiento es POR ID DE PUBLICACIÓN: si ya existe
+        un mapeo para ese item_id exacto se actualiza ese producto (sin
+        tocar precio ni costo); si no existe, SIEMPRE se crea un producto
+        nuevo — nunca se cuelga un ítem distinto de un producto existente.
+        """
         created_count = 0
         updated_count = 0
         linked_mappings = 0
         errors: list[str] = []
 
+        # La cuenta MeLi (token y propiedad) es obligatoria: sin ella no hay
+        # forma de consultar los datos reales de la publicación.
+        stmt_account = select(MeliAccount).where(
+            MeliAccount.id == meli_account_id,
+            MeliAccount.company_id == company_id,
+        )
+        account = (await session.execute(stmt_account)).scalar_one_or_none()
+        if not account:
+            raise EntityNotFoundException("Cuenta de Mercado Libre", str(meli_account_id))
+        if not account.is_active:
+            raise AppException(
+                "La cuenta de Mercado Libre está desconectada. Reconéctala antes de importar.",
+                status_code=400,
+                code="VALIDATION_ERROR",
+            )
+
+        meli = connector or MercadoLibreConnector(account=account, db_session=session)
+        try:
+            await meli.check_and_proactively_refresh()
+        except (MeliAuthException, MeliAPIException) as exc:
+            raise AppException(
+                f"No se pudo autenticar con Mercado Libre para importar: {exc.message}",
+                status_code=401,
+                code="MELI_AUTH_ERROR",
+            ) from exc
+
         for item in items:
             try:
-                # 1. Determinar SKU prioritario
-                primary_sku = (item.seller_custom_field or f"MELI-{item.id}").strip()
-                ean = item.barcode_ean.strip() if item.barcode_ean else None
+                item_id = normalize_meli_item_id(item.id)
+                if not item_id:
+                    errors.append("ID de publicación vacío.")
+                    continue
+                # Forma con guion ("MLM-6636669962") que guardaron las
+                # importaciones viejas: también hay que encontrarla.
+                legacy_id = f"MLM-{item_id[3:]}" if item_id.startswith("MLM") else item_id
 
-                # 2. Buscar si ya existe por SKU o por EAN en esta empresa
-                existing_variant: ProductVariant | None = None
+                # 1. Datos REALES desde MeLi (nunca del payload del frontend).
+                try:
+                    item_data = await meli.items.get_item(item_id)
+                except Exception as exc:
+                    errors.append(f"Error consultando publicación {item_id} en MeLi: {exc}")
+                    continue
+                real = cls._parse_meli_item_data(item_data)
+                live_price = real["price"]
+                if not live_price or live_price <= 0:
+                    errors.append(f"La publicación {item_id} no trae un precio válido en MeLi.")
+                    continue
+                ean = real["barcode_ean"]
 
-                # Buscar por SKU
-                stmt_sku = (
-                    select(ProductVariant)
-                    .join(Product, Product.id == ProductVariant.product_id)
+                # 2. Emparejar POR ID DE PUBLICACIÓN (el mapeo exacto manda).
+                stmt_map = (
+                    select(ProductSKU)
                     .where(
-                        Product.company_id == company_id,
-                        func.lower(ProductVariant.sku) == primary_sku.lower(),
+                        ProductSKU.meli_account_id == meli_account_id,
+                        or_(
+                            ProductSKU.meli_item_id == item_id,
+                            ProductSKU.meli_item_id == legacy_id,
+                        ),
                     )
-                    .options(selectinload(ProductVariant.product))
+                    .options(selectinload(ProductSKU.variant).selectinload(ProductVariant.product))
                 )
-                existing_variant = (await session.execute(stmt_sku)).scalar_one_or_none()
+                existing_map = (await session.execute(stmt_map)).scalar_one_or_none()
 
-                # Si no se halló por SKU, buscar por código de barras EAN si está disponible
-                if not existing_variant and ean:
-                    stmt_ean = (
-                        select(ProductVariant)
-                        .join(Product, Product.id == ProductVariant.product_id)
-                        .where(
-                            Product.company_id == company_id,
-                            ProductVariant.barcode_ean == ean,
-                        )
-                        .options(selectinload(ProductVariant.product))
-                    )
-                    existing_variant = (await session.execute(stmt_ean)).scalar_one_or_none()
-
-                # Si no se halló, buscar si ya existe la publicación MeLi mapeada
-                if not existing_variant:
-                    stmt_map = (
-                        select(ProductSKU)
-                        .where(
-                            ProductSKU.meli_account_id == meli_account_id,
-                            ProductSKU.meli_item_id == item.id,
-                        )
-                        .options(selectinload(ProductSKU.variant).selectinload(ProductVariant.product))
-                    )
-                    existing_sku_map = (await session.execute(stmt_map)).scalar_one_or_none()
-                    if existing_sku_map:
-                        existing_variant = existing_sku_map.variant
-
-                # 3. Si ya existe, ACTUALIZAR para evitar duplicación
-                if existing_variant:
-                    product = existing_variant.product
-                    product.sale_price = item.price
-                    if item.brand and not product.brand:
-                        product.brand = item.brand
-                    if item.model and not product.model:
-                        product.model = item.model
-                    if item.pictures and not product.images:
-                        product.images = item.pictures
-                    if ean and not existing_variant.barcode_ean:
-                        existing_variant.barcode_ean = ean
-
-                    target_variant = existing_variant
+                if existing_map is not None and existing_map.variant is not None:
+                    product = existing_map.variant.product
+                    target_variant = existing_map.variant
+                    # Normalizar el ID guardado a la forma canónica y
+                    # refrescar el precio guardado con el precio REAL de
+                    # MeLi (esto cura el "$699.00" de los registros viejos).
+                    existing_map.meli_item_id = item_id
+                    existing_map.price = live_price
+                    # NUNCA sobrescribir precio ni costo del producto: solo
+                    # rellenar campos que estén vacíos.
+                    if real["brand"] and not product.brand:
+                        product.brand = real["brand"]
+                    if real["model"] and not product.model:
+                        product.model = real["model"]
+                    if real["pictures"] and not product.images:
+                        product.images = real["pictures"]
+                    if ean and not target_variant.barcode_ean:
+                        target_variant.barcode_ean = ean
                     updated_count += 1
                 else:
-                    # Crear nuevo producto maestro y variante
+                    # Sin mapeo para este item_id: SIEMPRE crear un producto
+                    # nuevo. Antes se emparejaba por SKU/EAN y dos ítems
+                    # distintos con el mismo SKU fabricado se fusionaban.
+                    sku = await cls._resolve_import_sku(
+                        session, company_id, real["seller_custom_field"], item_id
+                    )
                     product = Product(
                         company_id=company_id,
-                        name=item.title.strip(),
-                        brand=item.brand,
-                        model=item.model,
-                        category=item.category_id,
-                        category_code=item.category_id,
-                        description=item.description,
-                        sale_price=item.price,
-                        cost_price=item.price * 0.50,  # Estimado inicial de costo
-                        images=item.pictures,
-                        weight_kg=item.weight_kg or 0.500,
+                        name=real["title"] or f"Publicación MeLi {item_id}",
+                        brand=real["brand"],
+                        model=real["model"],
+                        category=real["category_id"],
+                        category_code=real["category_id"],
+                        sale_price=live_price,
+                        cost_price=live_price * 0.50,  # Estimado inicial de costo
+                        images=real["pictures"],
+                        weight_kg=0.500,
                     )
                     session.add(product)
                     await session.flush()
@@ -375,32 +542,32 @@ class CatalogService:
                         company_id=company_id,
                         product_id=product.id,
                         variant_name="Principal / MeLi",
-                        sku=primary_sku,
+                        sku=sku,
                         barcode_ean=ean,
                         cogs_cost=product.cost_price,
-                        sale_price=item.price,
+                        sale_price=live_price,
                     )
                     session.add(target_variant)
                     await session.flush()
                     created_count += 1
 
-                # 4. Vincular la publicación en ProductSKU (soporta multi-cuenta y multi-publicación)
-                stmt_sku_link = select(ProductSKU).where(
+                # 3. Vincular la publicación en ProductSKU (si aún no existe
+                # el mapeo para este item_id en esta cuenta).
+                stmt_link = select(ProductSKU).where(
                     ProductSKU.meli_account_id == meli_account_id,
-                    ProductSKU.meli_item_id == item.id,
+                    ProductSKU.meli_item_id == item_id,
                 )
-                existing_link = (await session.execute(stmt_sku_link)).scalar_one_or_none()
-                if not existing_link:
+                if not (await session.execute(stmt_link)).scalar_one_or_none():
                     sku_mapping = ProductSKU(
                         company_id=company_id,
                         meli_account_id=meli_account_id,
                         variant_id=target_variant.id,
-                        meli_item_id=item.id,
-                        seller_sku=primary_sku,
-                        price=item.price,
-                        listing_type_id="gold_special",
-                        logistic_type="fulfillment",
-                        status="active",
+                        meli_item_id=item_id,
+                        seller_sku=target_variant.sku,
+                        price=live_price,
+                        listing_type_id=real["listing_type_id"] or "gold_special",
+                        logistic_type=real["logistic_type"] or "fulfillment",
+                        status=real["status"] or "active",
                     )
                     session.add(sku_mapping)
                     linked_mappings += 1
