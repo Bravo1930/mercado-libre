@@ -150,8 +150,14 @@ function loadView(route) {
       </div>
     `;
 
-    renderSidebar(document.getElementById('sidebar-container'));
-    renderHeader(document.getElementById('header-container'));
+    // renderSidebar() y renderHeader() NO aceptan un contenedor: crean el
+    // elemento y lo DEVUELVEN. Pasarles el contenedor como argumento no hace
+    // nada y el valor de retorno se descartaba, así que el menú lateral y el
+    // encabezado nunca se pintaban (el bug desde el commit 3f677a9: sin menú
+    // no se podía navegar a #products y el botón "Nuevo Producto" era
+    // inalcanzable). Se sustituyen los contenedores vacíos por los elementos.
+    document.getElementById('sidebar-container').replaceWith(renderSidebar());
+    document.getElementById('header-container').replaceWith(renderHeader());
   }
 
   const viewContainer = document.getElementById('main-view-container');
