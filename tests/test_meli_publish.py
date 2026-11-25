@@ -374,6 +374,52 @@ def test_publish_sends_extra_attributes_with_value_id(publish_context, monkeypat
     assert attrs["GTIN"] == "07503050554934"
 
 
+def test_publish_sends_input_output_connectors_for_mlm5107(publish_context, monkeypatch):
+    """Fix 12 (2026-11-25): MLM5107 (Cables) exige INPUT_CONNECTOR y
+    OUTPUT_CONNECTOR; sin ellos MeLi responde 400 "The attributes
+    [INPUT_CONNECTOR, OUTPUT_CONNECTOR] are required for category
+    MLM5107...". Caso real: cable retráctil 3 en 1 WI.164 (entrada USB-A,
+    salidas Lightning + Tipo-C + Micro-USB; MeLi no tiene valor Lightning y
+    el atributo es de valor único, así que la salida es USB-C). Los
+    value_ids son los oficiales de GET /categories/MLM5107/attributes."""
+    client, company_id, headers, account_id, _factory = publish_context
+    product = _create_charger_product(client, company_id, headers)
+
+    fake = FakeConnector()
+    monkeypatch.setattr(
+        "src.services.catalog_service.MercadoLibreConnector",
+        lambda *args, **kwargs: fake,
+    )
+
+    res = client.post(
+        f"/api/v1/products/{product['id']}/publish-meli",
+        json={
+            "meli_account_id": account_id,
+            "category_id": "MLM5107",
+            "attributes": [
+                {"id": "INPUT_CONNECTOR", "value_id": "4027341", "value_name": "USB-A"},
+                {"id": "OUTPUT_CONNECTOR", "value_id": "6778102", "value_name": "USB-C"},
+            ],
+        },
+        headers=headers,
+    )
+    assert res.status_code == 201, res.text
+
+    assert len(fake.items.created_payloads) == 1
+    sent = fake.items.created_payloads[0]
+    assert sent["category_id"] == "MLM5107"
+    assert {
+        "id": "INPUT_CONNECTOR",
+        "value_id": "4027341",
+        "value_name": "USB-A",
+    } in sent["attributes"]
+    assert {
+        "id": "OUTPUT_CONNECTOR",
+        "value_id": "6778102",
+        "value_name": "USB-C",
+    } in sent["attributes"]
+
+
 def test_publish_attribute_with_only_value_id(publish_context, monkeypatch):
     """Un atributo de catálogo puede venir solo con value_id (sin value_name)
     y se pasa tal cual a MeLi."""

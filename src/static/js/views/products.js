@@ -1117,6 +1117,40 @@ async function openPublishModal(product) {
         ],
       },
     ],
+    // Fix 12 (2026-11-25): MLM5107 (Cables) exige INPUT_CONNECTOR y
+    // OUTPUT_CONNECTOR ("The attributes [INPUT_CONNECTOR, OUTPUT_CONNECTOR]
+    // are required..."). value_ids oficiales de MeLi, verificados en vivo en
+    // GET /categories/MLM5107/attributes. Ambos son de valor único (sin
+    // tag multivalued): un cable 3 en 1 como el WI.164 (Lightning + Tipo-C
+    // + Micro-USB) no tiene valor Lightning en MeLi — se elige USB-C como
+    // salida (una de sus tres puntas reales) y el "3 en 1" queda en el
+    // título/descripción.
+    MLM5107: [
+      {
+        id: "INPUT_CONNECTOR",
+        label: "Conector de entrada",
+        required: true,
+        values: [
+          { value_id: "4027341", value_name: "USB-A" },
+          { value_id: "17291935", value_name: "USB-C" },
+          { value_id: "13814108", value_name: "Micro USB" },
+          { value_id: "17606340", value_name: "USB-B" },
+          { value_id: "13843109", value_name: "Mini Usb" },
+        ],
+      },
+      {
+        id: "OUTPUT_CONNECTOR",
+        label: "Conector de salida",
+        required: true,
+        values: [
+          { value_id: "6778102", value_name: "USB-C" },
+          { value_id: "9824272", value_name: "USB-A" },
+          { value_id: "10803095", value_name: "Micro-USB" },
+          { value_id: "4027343", value_name: "USB-B" },
+          { value_id: "16485475", value_name: "Mini USB" },
+        ],
+      },
+    ],
   };
 
   // Muestra los selects de atributos requeridos solo cuando la categoría
