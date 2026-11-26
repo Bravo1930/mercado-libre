@@ -31,7 +31,7 @@ export async function renderSettings(container) {
       <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 class="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
-            ${icons.settings} Configuración y Administración
+            ${icons.settings("w-6 h-6")} Configuración y Administración
           </h1>
           <p class="text-sm text-slate-500 mt-1">
             Gestión fiscal de la empresa, control de accesos RBAC (8 roles) y bitácora de auditoría inmutable.
@@ -150,7 +150,7 @@ function renderCompanyTab() {
 
         <div class="pt-4 border-t border-slate-100 flex justify-end">
           <button type="submit" id="btn-save-company" class="btn-primary flex items-center gap-2">
-            ${icons.check} Actualizar Datos de Empresa
+            ${icons.check("w-4 h-4")} Actualizar Datos de Empresa
           </button>
         </div>
       </form>
@@ -178,7 +178,7 @@ function renderCompanyTab() {
     } finally {
       if (btn) {
         btn.disabled = false;
-        btn.innerHTML = `${icons.check} Actualizar Datos de Empresa`;
+        btn.innerHTML = `${icons.check("w-4 h-4")} Actualizar Datos de Empresa`;
       }
     }
   });
@@ -202,7 +202,7 @@ async function renderUsersTab() {
           <p class="text-xs text-slate-500">Matriz estricta de 8 roles RBAC con validación en backend.</p>
         </div>
         <button id="btn-assign-user" class="btn-primary flex items-center gap-1.5 text-xs">
-          ${icons.plus} Asignar Nuevo Usuario
+          ${icons.plus("w-4 h-4")} Asignar Nuevo Usuario
         </button>
       </div>
 
@@ -354,7 +354,7 @@ function openAssignUserModal() {
       <div class="flex justify-end gap-2 pt-2">
         <button type="button" id="btn-cancel-assign" class="btn-secondary">Cancelar</button>
         <button type="submit" id="btn-submit-assign" class="btn-primary flex items-center gap-1.5">
-          ${icons.check} Asignar a Empresa
+          ${icons.check("w-4 h-4")} Asignar a Empresa
         </button>
       </div>
     </form>
@@ -387,7 +387,7 @@ function openAssignUserModal() {
     } finally {
       if (btn) {
         btn.disabled = false;
-        btn.innerHTML = `${icons.check} Asignar a Empresa`;
+        btn.innerHTML = `${icons.check("w-4 h-4")} Asignar a Empresa`;
       }
     }
   });
@@ -418,7 +418,7 @@ function openEditRoleModal(userId, currentRole) {
       <div class="flex justify-end gap-2 pt-2">
         <button type="button" id="btn-cancel-edit-role" class="btn-secondary">Cancelar</button>
         <button type="submit" id="btn-submit-edit-role" class="btn-primary flex items-center gap-1.5">
-          ${icons.check} Guardar Cambio de Rol
+          ${icons.check("w-4 h-4")} Guardar Cambio de Rol
         </button>
       </div>
     </form>
@@ -458,7 +458,7 @@ async function renderAuditTab() {
           <p class="text-xs text-slate-500">Registro auditable de modificaciones, creaciones y accesos.</p>
         </div>
         <button id="btn-refresh-audit" class="btn-secondary text-xs flex items-center gap-1.5 py-1.5 px-3">
-          ${icons.refresh} Refrescar Eventos
+          ${icons.refresh("w-4 h-4")} Refrescar Eventos
         </button>
       </div>
       <div class="overflow-x-auto">

@@ -19,7 +19,7 @@ export async function renderShipments(container) {
       <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 class="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
-            ${icons.truck} Envíos y Logística
+            ${icons.shipments("w-6 h-6")} Envíos y Logística
           </h1>
           <p class="text-sm text-slate-500 mt-1">
             Monitoreo en tiempo real de Mercado Envíos (Full, Colecta, Flex) y cumplimiento de entregas.
@@ -27,7 +27,7 @@ export async function renderShipments(container) {
         </div>
         <div class="flex items-center gap-2">
           <button id="btn-refresh-shipments" class="btn-secondary flex items-center gap-1.5 text-xs py-2 px-3">
-            ${icons.refresh} Actualizar Estados
+            ${icons.refresh("w-4 h-4")} Actualizar Estados
           </button>
         </div>
       </div>
@@ -61,7 +61,7 @@ export async function renderShipments(container) {
         <div class="flex flex-col sm:flex-row gap-3 items-center justify-between">
           <div class="relative w-full sm:w-80">
             <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-              ${icons.search}
+              ${icons.search("w-4 h-4")}
             </span>
             <input
               type="text"
@@ -190,7 +190,7 @@ function renderTable() {
         </td>
         <td class="p-3">
           <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200">
-            ${icons.truck} FULL Logistics
+            ${icons.shipments("w-4 h-4")} FULL Logistics
           </span>
         </td>
         <td class="p-3">
@@ -208,7 +208,7 @@ function renderTable() {
             data-order-id="${item.meli_order_id}"
             class="btn-view-tracking inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors"
           >
-            ${icons.eye} Ver Timeline
+            ${icons.eye("w-4 h-4")} Ver Timeline
           </button>
         </td>
       </tr>
@@ -236,7 +236,7 @@ function openTrackingTimelineModal(trackingNum, orderId) {
         </div>
         <div class="text-right">
           <span class="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-800">
-            ${icons.truck} En Camino · Entrega Hoy
+            ${icons.shipments("w-4 h-4")} En Camino · Entrega Hoy
           </span>
         </div>
       </div>

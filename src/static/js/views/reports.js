@@ -15,7 +15,7 @@ export async function renderReports(container) {
       <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 class="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
-            ${icons.chart} Centro de Reportes y Exportación
+            ${icons.reports("w-6 h-6")} Centro de Reportes y Exportación
           </h1>
           <p class="text-sm text-slate-500 mt-1">
             Generación y descarga de archivos compatibles con Microsoft Excel y software contable mexicano.
@@ -29,7 +29,7 @@ export async function renderReports(container) {
         <div class="card p-5 flex flex-col justify-between space-y-4">
           <div class="space-y-2">
             <div class="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
-              ${icons.cash}
+              ${icons.finances("w-5 h-5")}
             </div>
             <h2 class="text-base font-bold text-slate-900">Reporte de Ventas y Conciliación Fiscal</h2>
             <p class="text-xs text-slate-500 leading-relaxed">
@@ -39,7 +39,7 @@ export async function renderReports(container) {
           <div class="pt-4 border-t border-slate-100 flex items-center justify-between">
             <span class="text-xs font-mono text-slate-400">Formato: CSV / Excel (UTF-8 BOM)</span>
             <button id="btn-export-sales-csv" class="btn-primary text-xs flex items-center gap-1.5 py-2 px-3">
-              ${icons.download} Exportar Ventas
+              ${icons.download("w-4 h-4")} Exportar Ventas
             </button>
           </div>
         </div>
@@ -48,7 +48,7 @@ export async function renderReports(container) {
         <div class="card p-5 flex flex-col justify-between space-y-4">
           <div class="space-y-2">
             <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
-              ${icons.cube}
+              ${icons.products("w-5 h-5")}
             </div>
             <h2 class="text-base font-bold text-slate-900">Reporte de Valuación de Inventario (Kardex)</h2>
             <p class="text-xs text-slate-500 leading-relaxed">
@@ -58,7 +58,7 @@ export async function renderReports(container) {
           <div class="pt-4 border-t border-slate-100 flex items-center justify-between">
             <span class="text-xs font-mono text-slate-400">Formato: CSV / Excel (UTF-8 BOM)</span>
             <button id="btn-export-inventory-csv" class="btn-primary text-xs flex items-center gap-1.5 py-2 px-3">
-              ${icons.download} Exportar Inventario
+              ${icons.download("w-4 h-4")} Exportar Inventario
             </button>
           </div>
         </div>
@@ -67,7 +67,7 @@ export async function renderReports(container) {
         <div class="card p-5 flex flex-col justify-between space-y-4">
           <div class="space-y-2">
             <div class="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center font-bold">
-              ${icons.calculator}
+              ${icons.pricing("w-5 h-5")}
             </div>
             <h2 class="text-base font-bold text-slate-900">Constancia Mensual de Retenciones SAT</h2>
             <p class="text-xs text-slate-500 leading-relaxed">
@@ -77,7 +77,7 @@ export async function renderReports(container) {
           <div class="pt-4 border-t border-slate-100 flex items-center justify-between">
             <span class="text-xs font-mono text-slate-400">Formato: CSV / Excel (UTF-8 BOM)</span>
             <button id="btn-export-taxes-csv" class="btn-primary text-xs flex items-center gap-1.5 py-2 px-3">
-              ${icons.download} Exportar Retenciones
+              ${icons.download("w-4 h-4")} Exportar Retenciones
             </button>
           </div>
         </div>
@@ -86,7 +86,7 @@ export async function renderReports(container) {
         <div class="card p-5 flex flex-col justify-between space-y-4">
           <div class="space-y-2">
             <div class="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold">
-              ${icons.tag}
+              ${icons.labels("w-5 h-5")}
             </div>
             <h2 class="text-base font-bold text-slate-900">Catálogo de Productos y Rendimiento</h2>
             <p class="text-xs text-slate-500 leading-relaxed">
@@ -96,7 +96,7 @@ export async function renderReports(container) {
           <div class="pt-4 border-t border-slate-100 flex items-center justify-between">
             <span class="text-xs font-mono text-slate-400">Formato: CSV / Excel (UTF-8 BOM)</span>
             <button id="btn-export-products-csv" class="btn-primary text-xs flex items-center gap-1.5 py-2 px-3">
-              ${icons.download} Exportar Catálogo
+              ${icons.download("w-4 h-4")} Exportar Catálogo
             </button>
           </div>
         </div>

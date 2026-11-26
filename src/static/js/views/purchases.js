@@ -25,7 +25,7 @@ export async function renderPurchases(container) {
       <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 class="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
-            ${icons.truck} Centro de Abastecimiento y Compras
+            ${icons.shipments("w-6 h-6")} Centro de Abastecimiento y Compras
           </h1>
           <p class="text-sm text-slate-500 mt-1">
             Control de órdenes de compra, recepciones parciales en almacén, prorrateo de costos landed y cálculo de reposición.
@@ -33,7 +33,7 @@ export async function renderPurchases(container) {
         </div>
         <div class="flex items-center gap-2">
           <button id="btn-create-po" class="btn-primary flex items-center gap-2">
-            ${icons.plus} Nueva Orden de Compra
+            ${icons.plus("w-4 h-4")} Nueva Orden de Compra
           </button>
         </div>
       </div>
@@ -66,13 +66,13 @@ export async function renderPurchases(container) {
       <div class="border-b border-slate-200">
         <nav class="flex space-x-6" aria-label="Tabs">
           <button id="tab-orders" class="tab-btn pb-3 text-sm font-semibold border-b-2 border-blue-600 text-blue-600 flex items-center gap-2">
-            ${icons.truck} Órdenes de Compra
+            ${icons.shipments("w-4 h-4")} Órdenes de Compra
           </button>
           <button id="tab-receipts" class="tab-btn pb-3 text-sm font-semibold border-b-2 border-transparent text-slate-500 hover:text-slate-800 flex items-center gap-2">
-            ${icons.package} Recepciones de Mercancía
+            ${icons.products("w-4 h-4")} Recepciones de Mercancía
           </button>
           <button id="tab-replenishment" class="tab-btn pb-3 text-sm font-semibold border-b-2 border-transparent text-slate-500 hover:text-slate-800 flex items-center gap-2">
-            ${icons.activity} Motor de Reposición Inteligente
+            ${icons.ai("w-4 h-4")} Motor de Reposición Inteligente
           </button>
         </nav>
       </div>
@@ -406,7 +406,7 @@ function openPoDetailModal(po, landed) {
       ${!po.payment_authorized ? `
         <div class="pt-3 border-t border-slate-200 flex justify-end gap-2">
           <button id="btn-modal-auth-pay" class="btn-primary text-xs flex items-center gap-1">
-            ${icons.check} Autorizar Pago a Proveedor
+            ${icons.check("w-4 h-4")} Autorizar Pago a Proveedor
           </button>
         </div>
       ` : ''}
@@ -570,7 +570,7 @@ function openCreateReceiptModal(po) {
       <div class="flex justify-end gap-2 pt-2">
         <button type="button" id="btn-cancel-rec" class="btn-secondary">Cancelar</button>
         <button type="submit" id="btn-submit-rec" class="btn-primary flex items-center gap-1.5">
-          ${icons.check} Confirmar Entrada al Kardex
+          ${icons.check("w-4 h-4")} Confirmar Entrada al Kardex
         </button>
       </div>
     </form>
@@ -751,7 +751,7 @@ function renderReplenishmentTable(container) {
               data-gen-cost="${item.unit_cost}"
               class="btn-gen-auto-po text-xs px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded font-medium inline-flex items-center gap-1"
             >
-              ${icons.plus} Generar OC
+              ${icons.plus("w-4 h-4")} Generar OC
             </button>
           ` : '<span class="text-xs text-slate-400">Sin proveedor</span>'}
         </td>
@@ -959,7 +959,7 @@ function openCreatePoModal() {
       <div class="flex justify-end gap-2 pt-2">
         <button type="button" id="btn-cancel-po" class="btn-secondary">Cancelar</button>
         <button type="submit" id="btn-submit-po" class="btn-primary flex items-center gap-1.5">
-          ${icons.check} Crear Orden de Compra (Borrador)
+          ${icons.check("w-4 h-4")} Crear Orden de Compra (Borrador)
         </button>
       </div>
     </form>
@@ -1033,7 +1033,7 @@ function openCreatePoModal() {
     } finally {
       if (btn) {
         btn.disabled = false;
-        btn.innerHTML = `${icons.check} Crear Orden de Compra (Borrador)`;
+        btn.innerHTML = `${icons.check("w-4 h-4")} Crear Orden de Compra (Borrador)`;
       }
     }
   });

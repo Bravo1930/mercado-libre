@@ -26,7 +26,7 @@ export async function renderAI(container) {
         <div>
           <h1 class="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2.5">
             <span class="p-2 bg-gradient-to-tr from-purple-600 to-indigo-600 text-white rounded-xl shadow-sm">
-              ${icons.sparkles}
+              ${icons.ai("w-6 h-6")}
             </span>
             Asistente Comercial de Inteligencia Artificial
           </h1>
@@ -41,7 +41,7 @@ export async function renderAI(container) {
             id="btn-ai-settings"
             class="px-3.5 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-xl hover:bg-slate-50 shadow-sm flex items-center gap-1.5 transition-all"
           >
-            ${icons.settings || '⚙️'} Proveedor de IA
+            ${icons.settings("w-4 h-4")} Proveedor de IA
           </button>
           <button
             id="btn-ai-audit"
@@ -137,7 +137,7 @@ export async function renderAI(container) {
                 id="ai-submit-btn"
                 class="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-sm flex items-center justify-center gap-1.5 transition-all shrink-0"
               >
-                <span>Enviar</span> ${icons.send || '➤'}
+                <span>Enviar</span> ${icons.externalLink("w-4 h-4")}
               </button>
             </form>
           </div>

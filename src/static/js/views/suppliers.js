@@ -20,7 +20,7 @@ export async function renderSuppliers(container) {
       <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 class="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
-            ${icons.truck} Abastecimiento · Directorio de Proveedores
+            ${icons.shipments("w-6 h-6")} Abastecimiento · Directorio de Proveedores
           </h1>
           <p class="text-sm text-slate-500 mt-1">
             Gestión integral de socios comerciales, catálogo de suministro, evaluación de desempeño y condiciones bancarias.
@@ -28,7 +28,7 @@ export async function renderSuppliers(container) {
         </div>
         <div class="flex items-center gap-2">
           <button id="btn-create-supplier" class="btn-primary flex items-center gap-2">
-            ${icons.plus} Nuevo Proveedor
+            ${icons.plus("w-4 h-4")} Nuevo Proveedor
           </button>
         </div>
       </div>
@@ -211,7 +211,7 @@ function renderTable(filterQuery = '') {
             data-supp-id="${supp.id}"
             class="btn-order-from-supp inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors"
           >
-            ${icons.truck} Emitir OC
+            ${icons.shipments("w-4 h-4")} Emitir OC
           </button>
         </td>
       </tr>
@@ -357,7 +357,7 @@ function openCreateSupplierModal() {
       <div class="flex justify-end gap-2 pt-2">
         <button type="button" id="btn-cancel-supp" class="btn-secondary">Cancelar</button>
         <button type="submit" id="btn-submit-supp" class="btn-primary flex items-center gap-1.5">
-          ${icons.check} Registrar Proveedor
+          ${icons.check("w-4 h-4")} Registrar Proveedor
         </button>
       </div>
     </form>
@@ -409,7 +409,7 @@ function openCreateSupplierModal() {
     } finally {
       if (btn) {
         btn.disabled = false;
-        btn.innerHTML = `${icons.check} Registrar Proveedor`;
+        btn.innerHTML = `${icons.check("w-4 h-4")} Registrar Proveedor`;
       }
     }
   });
@@ -478,7 +478,7 @@ function openEvaluateSupplierModal(supplier) {
       <div class="flex justify-end gap-2 pt-2">
         <button type="button" id="btn-cancel-eval" class="btn-secondary">Cancelar</button>
         <button type="submit" id="btn-submit-eval" class="btn-primary flex items-center gap-1.5">
-          ${icons.check} Registrar Evaluación
+          ${icons.check("w-4 h-4")} Registrar Evaluación
         </button>
       </div>
     </form>

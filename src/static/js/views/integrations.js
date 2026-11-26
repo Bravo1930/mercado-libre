@@ -22,7 +22,7 @@ export async function renderIntegrations(container) {
       <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 class="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
-            ${icons.plug} Conector Oficial Mercado Libre México
+            ${icons.integrations("w-6 h-6")} Conector Oficial Mercado Libre México
           </h1>
           <p class="text-sm text-slate-500 mt-1">
             Módulo independiente <strong>MercadoLibreConnector</strong> con OAuth 2.0, auto-refresh de tokens y motor de sincronización idempotente.
@@ -30,10 +30,10 @@ export async function renderIntegrations(container) {
         </div>
         <div class="flex items-center gap-2">
           <button id="btn-trigger-reconciliation" class="btn-secondary flex items-center gap-1.5 text-xs font-semibold px-3 py-2">
-            ${icons.refresh} Conciliación Periódica
+            ${icons.refresh("w-4 h-4")} Conciliación Periódica
           </button>
           <button id="btn-oauth-connect" class="btn-primary flex items-center gap-2 bg-yellow-400 hover:bg-yellow-500 text-slate-900 border-none font-bold shadow-sm">
-            ${icons.plus} Conectar Cuenta vía OAuth
+            ${icons.plus("w-4 h-4")} Conectar Cuenta vía OAuth
           </button>
           <button id="btn-manual-connect" class="px-3.5 py-2 border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-xl transition-smooth shadow-sm">
             Ingreso Manual
@@ -60,7 +60,7 @@ export async function renderIntegrations(container) {
         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-100 pb-3">
           <div>
             <h2 class="text-base font-bold text-slate-900 flex items-center gap-2">
-              ${icons.zap} Monitor de Sincronización Oficial MeLi
+              ${icons.ai("w-4 h-4")} Monitor de Sincronización Oficial MeLi
             </h2>
             <p class="text-xs text-slate-500 mt-0.5">
               Control de webhooks, colas asíncronas, idempotencia y prevención de duplicados de pedidos y movimientos.
@@ -68,7 +68,7 @@ export async function renderIntegrations(container) {
           </div>
           <div class="flex items-center gap-2">
             <button id="btn-refresh-monitor" class="px-3 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-smooth flex items-center gap-1.5">
-              ${icons.refresh} Refrescar Métricas
+              ${icons.refresh("w-4 h-4")} Refrescar Métricas
             </button>
             <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800">
               <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> Motor Activo
@@ -238,7 +238,7 @@ export async function renderIntegrations(container) {
       <div class="card p-5 space-y-4">
         <div class="border-b border-slate-100 pb-3">
           <h2 class="text-base font-bold text-slate-900 flex items-center gap-2">
-            ${icons.database} Políticas de Resiliencia del Conector
+            ${icons.inventory("w-4 h-4")} Políticas de Resiliencia del Conector
           </h2>
         </div>
 

@@ -19,7 +19,7 @@ export async function renderPricing(container) {
       <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 class="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
-            ${icons.calculator} Administrador de Precios y Rentabilidad SAT
+            ${icons.pricing("w-6 h-6")} Administrador de Precios y Rentabilidad SAT
           </h1>
           <p class="text-sm text-slate-500 mt-1">
             Simulador inteligente de precios con desglose oficial SAT (IVA 8%, ISR 1%), comisiones MeLi, reglas de salvaguarda y auditoría con restauración.
@@ -27,7 +27,7 @@ export async function renderPricing(container) {
         </div>
         <div class="flex items-center gap-2">
           <button id="btn-view-history" class="btn-secondary text-xs font-semibold px-3 py-2 flex items-center gap-1.5">
-            ${icons.history || icons.clock} Historial y Restauración
+            ${icons.refresh("w-4 h-4")} Historial y Restauración
           </button>
         </div>
       </div>
@@ -38,7 +38,7 @@ export async function renderPricing(container) {
         <div class="lg:col-span-5 card p-5 space-y-4">
           <div class="flex items-center justify-between border-b border-slate-100 pb-3">
             <h2 class="text-base font-bold text-slate-900 flex items-center gap-2">
-              ${icons.chart} Variables de la Publicación
+              ${icons.reports("w-4 h-4")} Variables de la Publicación
             </h2>
             <span class="text-xs font-semibold px-2 py-0.5 rounded bg-blue-50 text-blue-700">Simulador en Vivo</span>
           </div>
@@ -110,7 +110,7 @@ export async function renderPricing(container) {
 
           <div class="pt-2">
             <button id="btn-backend-simulate" class="w-full btn-primary py-2.5 flex items-center justify-center gap-2 text-xs font-bold shadow-sm">
-              ${icons.check} Validar con Motor Fiscal Backend (SAT México)
+              ${icons.check("w-4 h-4")} Validar con Motor Fiscal Backend (SAT México)
             </button>
           </div>
         </div>
@@ -120,7 +120,7 @@ export async function renderPricing(container) {
           <div>
             <div class="flex items-center justify-between border-b border-slate-100 pb-3">
               <h2 class="text-base font-bold text-slate-900 flex items-center gap-2">
-                ${icons.cash} Cascada de Deducciones y Utilidad Neta
+                ${icons.finances("w-4 h-4")} Cascada de Deducciones y Utilidad Neta
               </h2>
               <div id="sim-status-pill" class="text-xs font-bold px-3 py-1 rounded-full bg-emerald-100 text-emerald-800">
                 Margen Saludable
@@ -393,13 +393,13 @@ function renderProductsTable() {
               data-cogs="${defaultCogs}"
               class="btn-load-sim inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors"
             >
-              ${icons.calculator} Analizar
+              ${icons.pricing("w-4 h-4")} Analizar
             </button>
             <button
               data-prod-id="${prod.id}"
               class="btn-edit-meli-price inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors"
             >
-              ${icons.edit || icons.check} Modificar en MeLi
+              ${icons.check("w-4 h-4")} Modificar en MeLi
             </button>
           </div>
         </td>
@@ -495,7 +495,7 @@ function openPriceModal(prod) {
       <div class="flex justify-end gap-2 pt-2">
         <button type="button" id="btn-cancel-price-modal" class="btn-secondary">Cancelar</button>
         <button type="submit" class="btn-primary flex items-center gap-1.5">
-          ${icons.check} Aplicar en Mercado Libre
+          ${icons.check("w-4 h-4")} Aplicar en Mercado Libre
         </button>
       </div>
     </form>
@@ -547,7 +547,7 @@ async function openHistoryModal() {
             ${
               h.can_restore
                 ? `<button data-hist-id="${h.id}" class="btn-restore-price inline-flex items-center gap-1 px-2 py-1 text-[11px] font-semibold rounded bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors">
-                    ${icons.refresh || icons.clock} Restaurar
+                    ${icons.refresh("w-4 h-4")} Restaurar
                   </button>`
                 : `<span class="text-slate-400 text-[11px]">${h.restored_at ? 'Restaurado' : 'No disponible'}</span>`
             }

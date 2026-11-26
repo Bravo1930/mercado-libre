@@ -28,7 +28,7 @@ export async function renderLabels(container) {
       <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 class="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
-            ${icons.tag} Centro de Logística y Etiquetas
+            ${icons.labels("w-6 h-6")} Centro de Logística y Etiquetas
           </h1>
           <p class="text-sm text-slate-500 mt-1">
             Gestión oficial de Mercado Envíos, guías de despacho, trazabilidad y rotulado interno de almacén.
@@ -36,7 +36,7 @@ export async function renderLabels(container) {
         </div>
         <div class="flex items-center gap-2">
           <button id="btn-refresh-logistics" class="btn-secondary flex items-center gap-1.5 text-xs py-2 px-3">
-            ${icons.refresh} Actualizar Datos
+            ${icons.refresh("w-4 h-4")} Actualizar Datos
           </button>
         </div>
       </div>
@@ -74,16 +74,16 @@ export async function renderLabels(container) {
       <div class="border-b border-slate-200">
         <nav class="flex space-x-6 text-sm font-medium">
           <button id="tab-shipping" class="tab-btn pb-3 px-1 border-b-2 font-semibold flex items-center gap-2 border-primary-600 text-primary-600">
-            ${icons.truck} Módulo A: Etiquetas de Envío MeLi
+            ${icons.shipments("w-4 h-4")} Módulo A: Etiquetas de Envío MeLi
           </button>
           <button id="tab-internal" class="tab-btn pb-3 px-1 border-b-2 font-semibold flex items-center gap-2 border-transparent text-slate-500 hover:text-slate-700">
-            ${icons.barcode || icons.tag} Módulo B: Etiquetas Internas (Almacén)
+            ${icons.labels("w-4 h-4")} Módulo B: Etiquetas Internas (Almacén)
           </button>
           <button id="tab-picking" class="tab-btn pb-3 px-1 border-b-2 font-semibold flex items-center gap-2 border-transparent text-slate-500 hover:text-slate-700">
-            ${icons.box || icons.package} Etiquetas de Surtido por Pedido
+            ${icons.products("w-4 h-4")} Etiquetas de Surtido por Pedido
           </button>
           <button id="tab-limitations" class="tab-btn pb-3 px-1 border-b-2 font-semibold flex items-center gap-2 border-transparent text-slate-500 hover:text-slate-700">
-            ${icons.info || icons.help} Limitaciones Oficiales & Contingencias
+            ${icons.alertTriangle("w-4 h-4")} Limitaciones Oficiales & Contingencias
           </button>
         </nav>
       </div>
@@ -166,7 +166,7 @@ async function renderShippingTab(container) {
           <div class="relative w-64">
             <input type="text" id="shipments-search" placeholder="Buscar guía, orden, comprador..." 
                    value="${searchQuery}" class="input-text text-xs py-1.5 pl-8 pr-2 w-full" />
-            <span class="absolute left-2.5 top-2 text-slate-400">${icons.search}</span>
+            <span class="absolute left-2.5 top-2 text-slate-400">${icons.search("w-4 h-4")}</span>
           </div>
 
           <!-- Filtro por Estado Operativo -->
@@ -191,7 +191,7 @@ async function renderShippingTab(container) {
         <!-- Botón Lote -->
         <div class="flex items-center gap-2">
           <button id="btn-batch-print" disabled class="btn-primary opacity-50 cursor-not-allowed flex items-center gap-1.5 text-xs py-2 px-3">
-            ${icons.printer || icons.truck} Imprimir Lote (<span id="selected-count">0</span>)
+            ${icons.download("w-4 h-4")} Imprimir Lote (<span id="selected-count">0</span>)
           </button>
         </div>
       </div>
@@ -347,11 +347,11 @@ function renderShipmentsRows(container) {
           <!-- Ver / Descargar Guía -->
           ${!isFull && !isCancelled ? `
             <button class="btn-action-view btn-secondary py-1 px-2 text-[11px]" data-id="${s.id}" title="Ver o descargar PDF oficial">
-              ${icons.download || icons.file || 'PDF'}
+              ${icons.download("w-4 h-4")}
             </button>
             <button class="btn-action-print ${s.print_count === 0 ? 'btn-primary' : 'btn-secondary'} py-1 px-2 text-[11px]" 
                     data-id="${s.id}" data-count="${s.print_count}" title="${s.print_count === 0 ? 'Imprimir Guía' : 'Reimprimir Guía'}">
-              ${s.print_count === 0 ? (icons.printer || 'Imprimir') : 'Reimprimir'}
+              ${s.print_count === 0 ? (icons.download("w-4 h-4")) : 'Reimprimir'}
             </button>
           ` : isFull ? `
             <span class="text-[10px] text-purple-600 font-semibold" title="Mercado Libre despacha directamente">CEDIS MeLi</span>
@@ -360,7 +360,7 @@ function renderShipmentsRows(container) {
           `}
           <!-- Seguimiento -->
           <button class="btn-action-tracking btn-secondary py-1 px-2 text-[11px]" data-id="${s.id}" title="Trazabilidad y Seguimiento">
-            ${icons.truck || 'Rastreo'}
+            ${icons.shipments("w-4 h-4")}
           </button>
         </td>
       </tr>
@@ -572,7 +572,7 @@ async function renderInternalLabelsTab(container) {
         <!-- Panel Izquierdo: Configuración de Plantilla y Agregar Productos -->
         <div class="card p-4 space-y-4">
           <h3 class="text-sm font-bold text-slate-900 border-b pb-2 flex items-center gap-2">
-            ${icons.settings || icons.sliders} Configuración de Plantilla
+            ${icons.settings("w-4 h-4")} Configuración de Plantilla
           </h3>
 
           <div>
@@ -638,7 +638,7 @@ async function renderInternalLabelsTab(container) {
               </div>
             </div>
             <button id="btn-add-item-queue" class="btn-secondary w-full py-2 text-xs font-semibold flex items-center justify-center gap-1.5 mt-2">
-              ${icons.plus || '+'} Agregar al Lote de Impresión
+              ${icons.plus("w-4 h-4")} Agregar al Lote de Impresión
             </button>
           </div>
         </div>
@@ -648,7 +648,7 @@ async function renderInternalLabelsTab(container) {
           <div>
             <div class="flex items-center justify-between border-b pb-2">
               <h3 class="text-sm font-bold text-slate-900 flex items-center gap-2">
-                ${icons.layers || icons.list} Lote de Impresión Activo (<span id="queue-total-count">0</span> etiquetas)
+                ${icons.inventory("w-4 h-4")} Lote de Impresión Activo (<span id="queue-total-count">0</span> etiquetas)
               </h3>
               <button id="btn-clear-queue" class="text-xs text-rose-600 hover:underline">Limpiar Lote</button>
             </div>
@@ -679,7 +679,7 @@ async function renderInternalLabelsTab(container) {
             </div>
             <div class="flex items-center gap-2">
               <button id="btn-generate-labels" class="btn-primary py-2 px-5 text-xs font-bold flex items-center gap-2">
-                ${icons.printer || icons.zap} Generar e Imprimir Etiquetas
+                ${icons.download("w-4 h-4")} Generar e Imprimir Etiquetas
               </button>
             </div>
           </div>
@@ -692,10 +692,10 @@ async function renderInternalLabelsTab(container) {
           <h4 class="text-xs font-bold text-slate-900 uppercase tracking-wider">Vista Previa Generada</h4>
           <div class="flex items-center gap-2">
             <button id="btn-trigger-print-window" class="btn-secondary py-1 px-3 text-xs font-semibold">
-              ${icons.printer} Imprimir Documento
+              ${icons.download("w-4 h-4")} Imprimir Documento
             </button>
             <button id="btn-copy-zpl" class="btn-secondary py-1 px-3 text-xs font-semibold hidden">
-              ${icons.copy || 'Copiar ZPL'}
+              ${icons.externalLink("w-4 h-4")}
             </button>
           </div>
         </div>
@@ -849,7 +849,7 @@ async function renderOrderPickingTab(container) {
   container.innerHTML = `
     <div class="card p-6 space-y-4 max-w-xl mx-auto">
       <h3 class="text-sm font-bold text-slate-900 flex items-center gap-2">
-        ${icons.package || icons.box} Etiquetas de Surtido de Pedidos
+        ${icons.products("w-4 h-4")} Etiquetas de Surtido de Pedidos
       </h3>
       <p class="text-xs text-slate-500">
         Genera automáticamente las etiquetas internas para los productos físicos que componen un pedido de venta,
@@ -870,7 +870,7 @@ async function renderOrderPickingTab(container) {
           </select>
         </div>
         <button id="btn-generate-order-picking" class="btn-primary w-full py-2.5 text-xs font-bold flex items-center justify-center gap-2">
-          ${icons.printer} Generar Etiquetas de Surtido
+          ${icons.download("w-4 h-4")} Generar Etiquetas de Surtido
         </button>
       </div>
 
@@ -959,7 +959,7 @@ async function renderLimitationsTab(container) {
       <div class="space-y-4 max-w-4xl mx-auto">
         <div class="card p-5 bg-gradient-to-r from-slate-900 to-slate-800 text-white space-y-2">
           <h3 class="text-base font-bold flex items-center gap-2">
-            ${icons.shield || icons.info} ${doc.title}
+            ${icons.shield("w-4 h-4")} ${doc.title}
           </h3>
           <p class="text-xs text-slate-300">
             ${doc.description}

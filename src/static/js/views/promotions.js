@@ -73,7 +73,7 @@ export async function renderPromotions(container) {
       <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 class="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
-            ${icons.tag} Promociones y Campañas Oficiales
+            ${icons.labels("w-6 h-6")} Promociones y Campañas Oficiales
           </h1>
           <p class="text-sm text-slate-500 mt-1">
             Gestión y postulación de ofertas relámpago, deals del día y campañas co-financiadas en MeLi México (con confirmación oficial obligatoria).
@@ -231,7 +231,7 @@ function renderCampaignsTable() {
               data-camp-id="${camp.id}"
               class="btn-enroll-promo btn-primary text-xs py-1.5 px-3 flex items-center gap-1.5 ml-auto"
             >
-              ${icons.plus} Postular SKU
+              ${icons.plus("w-4 h-4")} Postular SKU
             </button>
           `
               : `
@@ -315,7 +315,7 @@ function openEnrollModal(camp) {
       <div class="flex justify-end gap-2 pt-2">
         <button type="button" id="btn-cancel-promo" class="btn-secondary">Cancelar</button>
         <button type="submit" class="btn-primary flex items-center gap-1.5">
-          ${icons.check} Confirmar Postulación
+          ${icons.check("w-4 h-4")} Confirmar Postulación
         </button>
       </div>
     </form>

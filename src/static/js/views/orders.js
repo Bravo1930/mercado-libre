@@ -52,7 +52,7 @@ export function renderOrdersView() {
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
       <div>
         <h2 class="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
-          ${icons.shoppingBag || icons.box} Centro de Ventas & Pedidos MeLi
+          ${icons.orders("w-6 h-6")} Centro de Ventas & Pedidos MeLi
         </h2>
         <p class="text-xs text-slate-500 mt-0.5">
           Control omnicanal de pedidos, rentabilidad neta SAT, inventario reservado, trazabilidad y reclamos.
@@ -61,7 +61,7 @@ export function renderOrdersView() {
 
       <div class="flex items-center gap-2">
         <button id="btn-refresh-orders" class="p-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl transition-smooth shadow-sm touch-target" title="Recargar">
-          ${icons.refresh}
+          ${icons.refresh("w-4 h-4")}
         </button>
       </div>
     </div>
@@ -69,16 +69,16 @@ export function renderOrdersView() {
     <!-- Pestañas de Navegación del Centro de Ventas -->
     <div class="flex border-b border-slate-200 gap-1 text-xs font-bold overflow-x-auto">
       <button id="tab-sales" class="tab-btn px-4 py-2.5 border-b-2 border-blue-600 text-blue-600 flex items-center gap-1.5 transition-smooth">
-        ${icons.list || icons.tag} Todas las Ventas
+        ${icons.tabular("w-4 h-4")} Todas las Ventas
       </button>
       <button id="tab-cancelled" class="tab-btn px-4 py-2.5 border-b-2 border-transparent text-slate-500 hover:text-slate-800 flex items-center gap-1.5 transition-smooth">
-        ${icons.alert || icons.shield} Cancelaciones & Devoluciones
+        ${icons.alertTriangle("w-4 h-4")} Cancelaciones & Devoluciones
       </button>
       <button id="tab-claims" class="tab-btn px-4 py-2.5 border-b-2 border-transparent text-slate-500 hover:text-slate-800 flex items-center gap-1.5 transition-smooth">
-        ${icons.flag || icons.users} Reclamos Post-Venta
+        ${icons.alertTriangle("w-4 h-4")} Reclamos Post-Venta
       </button>
       <button id="tab-reports" class="tab-btn px-4 py-2.5 border-b-2 border-transparent text-slate-500 hover:text-slate-800 flex items-center gap-1.5 transition-smooth">
-        ${icons.chart || icons.check} Reportes Comerciales
+        ${icons.reports("w-4 h-4")} Reportes Comerciales
       </button>
     </div>
 
@@ -88,7 +88,7 @@ export function renderOrdersView() {
       <div class="p-4 bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
         <div class="flex-1 max-w-sm relative">
           <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-            ${icons.search}
+            ${icons.search("w-4 h-4")}
           </span>
           <input 
             id="orders-search-input" 

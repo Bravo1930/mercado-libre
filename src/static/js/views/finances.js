@@ -1311,7 +1311,7 @@ async function renderLossAlertsTab(content) {
       <div class="p-4 bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div>
           <h2 class="text-sm font-bold text-slate-900 flex items-center gap-2">
-            ${icons.alert ? icons.alert("w-4 h-4 text-rose-600") : ""} Auditoría Financiera de Pérdidas & Margen Crítico
+            ${icons.alertTriangle ? icons.alertTriangle("w-4 h-4 text-rose-600") : ""} Auditoría Financiera de Pérdidas & Margen Crítico
           </h2>
           <p class="text-xs text-slate-500 mt-0.5">
             Diagnostica productos donde el cargo fijo de $25 MXN (PVP &lt; $299), fletes altos o COGS generan rentabilidad negativa.
@@ -1393,7 +1393,7 @@ async function loadLossAlerts() {
 
           <div class="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs space-y-1.5">
             <div class="font-bold text-slate-800 flex items-center gap-1.5">
-              ${icons.alert ? icons.alert("w-3.5 h-3.5 text-rose-600") : ""} Causa Raíz Detectada:
+              ${icons.alertTriangle ? icons.alertTriangle("w-3.5 h-3.5 text-rose-600") : ""} Causa Raíz Detectada:
             </div>
             <p class="text-slate-600 leading-relaxed text-[11px]">${a.root_cause_analysis}</p>
           </div>
@@ -1477,7 +1477,7 @@ async function renderSimulatorTab(content) {
       <div class="lg:col-span-5 p-5 bg-white rounded-2xl border border-slate-200 shadow-sm space-y-4">
         <div>
           <h2 class="text-sm font-black text-slate-900 flex items-center gap-2">
-            ${icons.tag ? icons.tag("w-4 h-4 text-blue-600") : ""} Simulador Inverso de Precios
+            ${icons.labels ? icons.labels("w-4 h-4 text-blue-600") : ""} Simulador Inverso de Precios
           </h2>
           <p class="text-xs text-slate-500 mt-0.5">
             Calcula algebraicamente el precio de venta exacto requerido para lograr el margen neto deseado, considerando saltos discontinuos ($25 si &lt; $299) y SAT.
@@ -1632,7 +1632,7 @@ async function renderCostHistoryTab(content) {
       <div class="p-4 bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div>
           <h2 class="text-sm font-bold text-slate-900 flex items-center gap-2">
-            ${icons.list ? icons.list("w-4 h-4 text-blue-600") : ""} Trazabilidad e Historial Inmutable de Costos (COGS)
+            ${icons.tabular ? icons.tabular("w-4 h-4 text-blue-600") : ""} Trazabilidad e Historial Inmutable de Costos (COGS)
           </h2>
           <p class="text-xs text-slate-500 mt-0.5">
             Conserva el histórico de cada variación de costo con motivo justificado, permitiendo auditoría retroactiva de ganancias por fecha de venta.

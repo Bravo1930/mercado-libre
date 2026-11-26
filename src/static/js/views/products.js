@@ -26,7 +26,7 @@ export async function renderProducts(container) {
       <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <div>
           <h1 class="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
-            ${icons.cube} Catálogo Maestro de Productos
+            ${icons.products("w-6 h-6")} Catálogo Maestro de Productos
           </h1>
           <p class="text-sm text-slate-500 mt-1">
             Gestión integral de productos, variantes, códigos EAN, costos, publicaciones MeLi multi-cuenta y exportación contable.
@@ -36,13 +36,13 @@ export async function renderProducts(container) {
         <!-- Botonera de Acciones -->
         <div class="flex flex-wrap items-center gap-2">
           <button id="btn-check-duplicates" class="btn-secondary text-xs flex items-center gap-1.5 py-2 px-3 border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100">
-            ${icons.alert} Detector de Duplicados
+            ${icons.alertTriangle("w-4 h-4")} Detector de Duplicados
           </button>
           <button id="btn-import-meli" class="btn-secondary text-xs flex items-center gap-1.5 py-2 px-3 bg-yellow-400 hover:bg-yellow-500 text-slate-900 font-bold border-none">
-            ${icons.refresh} Importar de MeLi
+            ${icons.refresh("w-4 h-4")} Importar de MeLi
           </button>
           <button id="btn-import-csv" class="btn-secondary text-xs flex items-center gap-1.5 py-2 px-3">
-            ${icons.download} Importar CSV
+            ${icons.download("w-4 h-4")} Importar CSV
           </button>
           <div class="inline-flex rounded-xl shadow-sm">
             <button id="btn-export-csv" class="btn-secondary text-xs rounded-r-none border-r-0 py-2 px-3" title="Descargar CSV">
@@ -53,7 +53,7 @@ export async function renderProducts(container) {
             </button>
           </div>
           <button id="btn-create-product" class="btn-primary flex items-center gap-1.5 text-xs py-2 px-3.5">
-            ${icons.plus} Nuevo Producto
+            ${icons.plus("w-4 h-4")} Nuevo Producto
           </button>
         </div>
       </div>
@@ -64,7 +64,7 @@ export async function renderProducts(container) {
           <!-- Búsqueda global -->
           <div class="sm:col-span-5 relative">
             <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-              ${icons.search}
+              ${icons.search("w-4 h-4")}
             </span>
             <input
               type="text"
@@ -284,7 +284,7 @@ function renderProductsTable() {
         <td class="p-3">
           <div class="font-mono font-bold text-slate-800">${primarySku}</div>
           <div class="font-mono text-[11px] text-slate-500 flex items-center gap-1">
-            ${icons.tag} ${primaryBarcode}
+            ${icons.labels("w-4 h-4")} ${primaryBarcode}
           </div>
           ${variantsCount > 1 ? `<span class="inline-flex text-[10px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded mt-0.5">+${variantsCount - 1} variantes</span>` : ''}
         </td>
@@ -316,7 +316,7 @@ function renderProductsTable() {
             data-mappings-id="${p.id}"
             class="btn-view-mappings inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold rounded-lg bg-yellow-50 hover:bg-yellow-100 text-yellow-900 border border-yellow-200 transition-colors"
           >
-            ${icons.truck} Ver MeLi
+            ${icons.shipments("w-4 h-4")} Ver MeLi
           </button>
           <button
             data-publish-id="${p.id}"
@@ -350,14 +350,14 @@ function renderProductsTable() {
               class="btn-edit-prod p-1.5 text-slate-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
               title="Editar Producto"
             >
-              ${icons.edit}
+              ${icons.check("w-4 h-4")}
             </button>
             <button
               data-add-variant-id="${p.id}"
               class="btn-add-variant p-1.5 text-slate-600 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
               title="Agregar Variante"
             >
-              ${icons.plus}
+              ${icons.plus("w-4 h-4")}
             </button>
           </div>
         </td>
@@ -563,7 +563,7 @@ function openProductFormModal(product = null) {
       <div class="flex justify-end gap-2 pt-3 border-t border-slate-100">
         <button type="button" id="btn-cancel-prod-form" class="btn-secondary">Cancelar</button>
         <button type="submit" id="btn-submit-prod-form" class="btn-primary flex items-center gap-1.5">
-          ${icons.check} ${isEdit ? 'Actualizar Producto' : 'Guardar Producto'}
+          ${icons.check("w-4 h-4")} ${isEdit ? 'Actualizar Producto' : 'Guardar Producto'}
         </button>
       </div>
     </form>
@@ -643,7 +643,7 @@ function openProductFormModal(product = null) {
     } finally {
       if (btn) {
         btn.disabled = false;
-        btn.innerHTML = `${icons.check} ${isEdit ? 'Actualizar Producto' : 'Guardar Producto'}`;
+        btn.innerHTML = `${icons.check("w-4 h-4")} ${isEdit ? 'Actualizar Producto' : 'Guardar Producto'}`;
       }
     }
   });
@@ -689,7 +689,7 @@ function openAddVariantModal(product) {
       <div class="flex justify-end gap-2 pt-2 border-t border-slate-100">
         <button type="button" id="btn-cancel-var" class="btn-secondary">Cancelar</button>
         <button type="submit" id="btn-submit-var" class="btn-primary flex items-center gap-1.5">
-          ${icons.plus} Agregar Variante
+          ${icons.plus("w-4 h-4")} Agregar Variante
         </button>
       </div>
     </form>
@@ -727,7 +727,7 @@ function openAddVariantModal(product) {
     } finally {
       if (btn) {
         btn.disabled = false;
-        btn.innerHTML = `${icons.plus} Agregar Variante`;
+        btn.innerHTML = `${icons.plus("w-4 h-4")} Agregar Variante`;
       }
     }
   });
@@ -795,7 +795,7 @@ async function openMappingsModal(product) {
 
         <div class="flex justify-end pt-1">
           <button type="submit" id="btn-save-mapping" class="btn-primary text-xs py-1.5 px-3 flex items-center gap-1.5">
-            ${icons.plus} Vincular Publicación
+            ${icons.plus("w-4 h-4")} Vincular Publicación
           </button>
         </div>
       </form>
@@ -938,7 +938,7 @@ async function openMeliImportModal() {
       <div class="flex justify-end gap-2 pt-2 border-t border-slate-100">
         <button type="button" id="btn-cancel-meli-imp" class="btn-secondary">Cancelar</button>
         <button type="submit" id="btn-submit-meli-imp" class="btn-primary flex items-center gap-1.5 bg-yellow-400 hover:bg-yellow-500 text-slate-900 border-none font-bold">
-          ${icons.refresh} Iniciar Importación MeLi
+          ${icons.refresh("w-4 h-4")} Iniciar Importación MeLi
         </button>
       </div>
     </form>
@@ -967,7 +967,7 @@ async function openMeliImportModal() {
     if (itemIds.length === 0) {
       showToast("Ingresa al menos un ID de publicación MeLi (MLM...).", "warning");
       btn.disabled = false;
-      btn.innerHTML = `${icons.refresh} Iniciar Importación MeLi`;
+      btn.innerHTML = `${icons.refresh("w-4 h-4")} Iniciar Importación MeLi`;
       return;
     }
     const itemsPayload = itemIds.map(id => ({ id }));
@@ -986,7 +986,7 @@ async function openMeliImportModal() {
     } finally {
       if (btn) {
         btn.disabled = false;
-        btn.innerHTML = `${icons.refresh} Iniciar Importación MeLi`;
+        btn.innerHTML = `${icons.refresh("w-4 h-4")} Iniciar Importación MeLi`;
       }
     }
   });
@@ -1270,7 +1270,7 @@ function openCsvImportModal() {
         <input type="file" id="csv-file-input" accept=".csv" class="hidden" required />
         <label for="csv-file-input" class="cursor-pointer space-y-2 block">
           <div class="w-12 h-12 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center mx-auto">
-            ${icons.download}
+            ${icons.download("w-4 h-4")}
           </div>
           <div class="text-xs font-bold text-slate-800" id="csv-file-name">Selecciona o arrastra tu archivo CSV aquí</div>
           <div class="text-[11px] text-slate-400">Archivos .csv delimitados por comas o punto y coma (UTF-8)</div>
@@ -1280,7 +1280,7 @@ function openCsvImportModal() {
       <div class="flex justify-end gap-2 pt-2 border-t border-slate-100">
         <button type="button" id="btn-cancel-csv" class="btn-secondary">Cancelar</button>
         <button type="submit" id="btn-submit-csv" class="btn-primary flex items-center gap-1.5">
-          ${icons.check} Procesar Archivo CSV
+          ${icons.check("w-4 h-4")} Procesar Archivo CSV
         </button>
       </div>
     </form>
@@ -1324,7 +1324,7 @@ function openCsvImportModal() {
     } finally {
       if (btn) {
         btn.disabled = false;
-        btn.innerHTML = `${icons.check} Procesar Archivo CSV`;
+        btn.innerHTML = `${icons.check("w-4 h-4")} Procesar Archivo CSV`;
       }
     }
   });

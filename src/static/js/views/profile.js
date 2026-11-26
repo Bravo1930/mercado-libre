@@ -21,7 +21,7 @@ export async function renderProfile(container) {
       <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 class="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
-            ${icons.user} Mi Perfil y Seguridad
+            ${icons.user("w-6 h-6")} Mi Perfil y Seguridad
           </h1>
           <p class="text-sm text-slate-500 mt-1">
             Información de cuenta, membresías empresariales y administración de sesiones concurrentes.
@@ -67,7 +67,7 @@ export async function renderProfile(container) {
         <div class="p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
             <h2 class="text-base font-bold text-slate-900 flex items-center gap-2">
-              ${icons.shield} Sesiones Activas en Dispositivos
+              ${icons.shield("w-4 h-4")} Sesiones Activas en Dispositivos
             </h2>
             <p class="text-xs text-slate-500 mt-0.5">
               Dispositivos y navegadores que tienen tokens de acceso vigentes a tu cuenta.
@@ -136,7 +136,7 @@ function renderSessionsTable() {
       <tr class="hover:bg-slate-50 transition-colors">
         <td class="p-3">
           <div class="font-medium text-slate-900 flex items-center gap-2">
-            ${icons.cube} ${s.user_agent ? s.user_agent.slice(0, 40) + '...' : 'Navegador Web'}
+            ${icons.products("w-4 h-4")} ${s.user_agent ? s.user_agent.slice(0, 40) + '...' : 'Navegador Web'}
             ${isCurrent ? '<span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800">Esta Sesión</span>' : ''}
           </div>
           <div class="font-mono text-[11px] text-slate-400">ID: ${s.id.slice(0, 8)}...</div>

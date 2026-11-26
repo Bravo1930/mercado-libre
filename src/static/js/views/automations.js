@@ -27,7 +27,7 @@ export async function renderAutomations(container) {
         <div>
           <h1 class="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2.5">
             <span class="p-2 bg-gradient-to-tr from-amber-500 to-orange-600 text-white rounded-xl shadow-sm">
-              ${icons.zap}
+              ${icons.ai("w-6 h-6")}
             </span>
             Motor de Automatización Empresarial (ECA)
           </h1>
@@ -66,7 +66,7 @@ export async function renderAutomations(container) {
         <div class="flex items-center justify-between border-b border-slate-100 pb-3">
           <div>
             <h2 class="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
-              ${icons.settings || '⚙️'} Modalidad de Ejecución por Módulo
+              ${icons.settings("w-4 h-4")} Modalidad de Ejecución por Módulo
             </h2>
             <p class="text-xs text-slate-500 mt-0.5">
               Controla qué módulos operan desatendidos, cuáles requieren autorización humana previa y cuáles son manuales.
@@ -140,7 +140,7 @@ export async function renderAutomations(container) {
       <div class="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-xl border border-slate-200 space-y-4 max-h-[90vh] overflow-y-auto">
         <div class="flex items-center justify-between border-b border-slate-100 pb-3">
           <h3 class="text-base font-bold text-slate-900 flex items-center gap-2">
-            ${icons.zap} <span id="modal-rule-title">Nueva Regla de Automatización ECA</span>
+            ${icons.ai("w-4 h-4")} <span id="modal-rule-title">Nueva Regla de Automatización ECA</span>
           </h3>
           <button id="btn-close-modal" class="text-slate-400 hover:text-slate-600 text-xl font-bold">&times;</button>
         </div>

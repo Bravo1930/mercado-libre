@@ -311,10 +311,10 @@ export function renderInventoryView() {
                     ${icons.plus("w-3.5 h-3.5")}
                   </button>
                   <button class="btn-item-block p-1.5 hover:bg-rose-50 rounded-lg text-rose-600 transition-smooth" data-wh="${inv.warehouse_id}" data-var="${inv.variant_id}" data-avail="${inv.quantity_available}" data-blk="${inv.quantity_blocked}" title="Bloquear / Desbloquear">
-                    ${icons.lock ? icons.lock("w-3.5 h-3.5") : icons.settings("w-3.5 h-3.5")}
+                    ${icons.shield ? icons.shield("w-3.5 h-3.5") : icons.settings("w-3.5 h-3.5")}
                   </button>
                   <button class="btn-item-loc p-1.5 hover:bg-blue-50 rounded-lg text-blue-600 transition-smooth" data-wh="${inv.warehouse_id}" data-var="${inv.variant_id}" data-bin="${inv.location_bin || ''}" data-min="${inv.safety_stock}" data-max="${inv.max_stock ?? ''}" title="Editar Ubicación / Mínimos">
-                    ${icons.edit ? icons.edit("w-3.5 h-3.5") : icons.settings("w-3.5 h-3.5")}
+                    ${icons.check ? icons.check("w-3.5 h-3.5") : icons.settings("w-3.5 h-3.5")}
                   </button>
                 </div>
               </td>
