@@ -33,22 +33,31 @@ export async function renderFinances(container) {
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 class="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
-            ${icons.cash} Módulo Financiero & Conciliación MeLi
+            ${icons.finances("w-6 h-6 text-slate-700")} Módulo Financiero & Conciliación MeLi
           </h1>
           <p class="text-xs text-slate-500 mt-1">
             Auditoría de Mercado Pago, retenciones fiscales SAT (IVA 8%, ISR 1%), flujo de caja y liquidaciones bancarias.
           </p>
         </div>
 
-        <div class="flex items-center gap-2">
-          <button id="btn-run-reconciliation" class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold transition-smooth shadow-sm flex items-center gap-1.5 touch-target">
-            ${icons.refresh} Conciliación Automática
+        <div class="flex items-center gap-2.5">
+          <button id="btn-run-reconciliation" class="flex items-center gap-3 px-5 py-3 bg-gradient-to-r from-purple-600 to-violet-600 hover:from-purple-700 hover:to-violet-700 text-white rounded-2xl shadow-lg shadow-purple-600/30 hover:shadow-xl hover:shadow-purple-600/40 hover:-translate-y-0.5 transition-all touch-target text-left">
+            <span class="flex items-center justify-center w-10 h-10 rounded-xl bg-white/20 shrink-0">${icons.refresh("w-6 h-6")}</span>
+            <span class="flex flex-col items-start leading-tight">
+              <span class="text-sm font-extrabold">Conciliación Automática</span>
+              <span class="text-[11px] font-medium text-purple-100">Cruza tus ventas de MeLi con el banco en un clic</span>
+            </span>
           </button>
-          <button id="btn-add-expense" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-smooth shadow-sm flex items-center gap-1.5 touch-target">
-            ${icons.plus} Registrar Gasto Externo
+          <button id="btn-add-expense" class="flex items-center gap-3 px-5 py-3 bg-gradient-to-r from-blue-600 to-sky-600 hover:from-blue-700 hover:to-sky-700 text-white rounded-2xl shadow-lg shadow-blue-600/30 hover:shadow-xl hover:shadow-blue-600/40 hover:-translate-y-0.5 transition-all touch-target text-left">
+            <span class="flex items-center justify-center w-10 h-10 rounded-xl bg-white/20 shrink-0">${icons.plus("w-6 h-6")}</span>
+            <span class="flex flex-col items-start leading-tight">
+              <span class="text-sm font-extrabold">Registrar Gasto Externo</span>
+              <span class="text-[11px] font-medium text-blue-100">Anota un gasto fuera de Mercado Libre</span>
+            </span>
           </button>
-          <button id="btn-refresh-finances" class="p-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl transition-smooth shadow-sm touch-target" title="Recargar">
-            ${icons.refresh}
+          <button id="btn-refresh-finances" class="flex items-center gap-2 px-4 py-3 bg-white border-2 border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-slate-700 rounded-2xl shadow-sm hover:shadow transition-all touch-target text-sm font-bold" title="Actualizar datos financieros">
+            ${icons.refresh("w-5 h-5")}
+            <span>Actualizar</span>
           </button>
         </div>
       </div>
@@ -129,34 +138,34 @@ export async function renderFinances(container) {
       <!-- Pestañas de Navegación del Módulo Financiero -->
       <div class="flex border-b border-slate-200 gap-1 text-xs font-bold overflow-x-auto">
         <button id="tab-btn-transactions" class="fin-tab-btn px-4 py-2.5 border-b-2 border-blue-600 text-blue-600 flex items-center gap-1.5 transition-smooth whitespace-nowrap">
-          ${icons.list || icons.tag} Partidas & Transacciones
+          ${icons.tabular("w-4 h-4")} Partidas & Transacciones
         </button>
         <button id="tab-btn-settlements" class="fin-tab-btn px-4 py-2.5 border-b-2 border-transparent text-slate-500 hover:text-slate-800 flex items-center gap-1.5 transition-smooth whitespace-nowrap">
-          ${icons.cash || icons.check} Liquidaciones & Retiros
+          ${icons.check("w-4 h-4")} Liquidaciones & Retiros
         </button>
         <button id="tab-btn-expenses" class="fin-tab-btn px-4 py-2.5 border-b-2 border-transparent text-slate-500 hover:text-slate-800 flex items-center gap-1.5 transition-smooth whitespace-nowrap">
-          ${icons.box || icons.tag} Gastos Externos Manuales
+          ${icons.inventory("w-4 h-4")} Gastos Externos Manuales
         </button>
         <button id="tab-btn-reconciliation" class="fin-tab-btn px-4 py-2.5 border-b-2 border-transparent text-slate-500 hover:text-slate-800 flex items-center gap-1.5 transition-smooth whitespace-nowrap">
-          ${icons.shield || icons.alert} Conciliación & Discrepancias
+          ${icons.shield("w-4 h-4")} Conciliación & Discrepancias
         </button>
         <button id="tab-btn-reports" class="fin-tab-btn px-4 py-2.5 border-b-2 border-transparent text-slate-500 hover:text-slate-800 flex items-center gap-1.5 transition-smooth whitespace-nowrap">
-          ${icons.chart} Reportes Financieros
+          ${icons.reports("w-4 h-4")} Reportes Financieros
         </button>
         <button id="tab-btn-profitability" class="fin-tab-btn px-4 py-2.5 border-b-2 border-transparent text-slate-500 hover:text-slate-800 flex items-center gap-1.5 transition-smooth whitespace-nowrap">
-          ${icons.cash} Rentabilidad (8D)
+          ${icons.finances("w-4 h-4")} Rentabilidad (8D)
         </button>
         <button id="tab-btn-loss-alerts" class="fin-tab-btn px-4 py-2.5 border-b-2 border-transparent text-slate-500 hover:text-slate-800 flex items-center gap-1.5 transition-smooth whitespace-nowrap">
-          ${icons.alert} Alertas de Pérdida
+          ${icons.alertTriangle("w-4 h-4")} Alertas de Pérdida
         </button>
         <button id="tab-btn-simulator" class="fin-tab-btn px-4 py-2.5 border-b-2 border-transparent text-slate-500 hover:text-slate-800 flex items-center gap-1.5 transition-smooth whitespace-nowrap">
-          ${icons.tag} Simulador Margen
+          ${icons.labels("w-4 h-4")} Simulador Margen
         </button>
         <button id="tab-btn-cost-history" class="fin-tab-btn px-4 py-2.5 border-b-2 border-transparent text-slate-500 hover:text-slate-800 flex items-center gap-1.5 transition-smooth whitespace-nowrap">
-          ${icons.list} Historial Costos (COGS)
+          ${icons.tabular("w-4 h-4")} Historial Costos (COGS)
         </button>
         <button id="tab-btn-fiscal-pac" class="fin-tab-btn px-4 py-2.5 border-b-2 border-transparent text-slate-500 hover:text-slate-800 flex items-center gap-1.5 transition-smooth whitespace-nowrap">
-          ${icons.shield} PAC SAT (CFDI 4.0)
+          ${icons.shield("w-4 h-4")} PAC SAT (CFDI 4.0)
         </button>
       </div>
 
@@ -403,7 +412,7 @@ async function renderSettlementsTab(content) {
           <p class="text-xs text-slate-500 mt-0.5">Control de retiros de dinero disponible hacia cuentas bancarias CLABE.</p>
         </div>
         <button id="btn-create-settlement" class="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-smooth shadow-sm flex items-center gap-1.5">
-          ${icons.plus} Registrar Liquidación
+          ${icons.plus("w-4 h-4")} Registrar Liquidación
         </button>
       </div>
 
@@ -487,7 +496,7 @@ async function renderExpensesTab(content) {
           <p class="text-xs text-slate-500 mt-0.5">Erogaciones manuales (Facebook Ads, empaque, software, nómina, fletes particulares).</p>
         </div>
         <button id="btn-add-expense-tab" class="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-smooth shadow-sm flex items-center gap-1.5">
-          ${icons.plus} Registrar Gasto
+          ${icons.plus("w-4 h-4")} Registrar Gasto
         </button>
       </div>
 
@@ -560,7 +569,7 @@ async function renderReconciliationTab(content) {
           <p class="text-xs text-slate-500 mt-0.5">Compara ventas de órdenes vs cobros en Mercado Pago vs liquidaciones y retenciones SAT.</p>
         </div>
         <button id="btn-run-reconciliation-tab" class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold transition-smooth shadow-sm flex items-center gap-1.5">
-          ${icons.refresh} Ejecutar Conciliación en Vivo
+          ${icons.refresh("w-4 h-4")} Ejecutar Conciliación en Vivo
         </button>
       </div>
 
