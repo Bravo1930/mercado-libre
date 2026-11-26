@@ -24,11 +24,16 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         # 1. Content Security Policy (CSP) Estricto
         csp_directives = [
             "default-src 'self'",
-            "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
+            # cdn.tailwindcss.com: Tailwind Play CDN cargado en src/static/index.html:18
+            # (tailwind.config se define en línea justo después, línea 20).
+            "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdn.tailwindcss.com",
             "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net",
             "font-src 'self' https://fonts.gstatic.com data:",
             "img-src 'self' data: https: blob:",
-            "connect-src 'self' https://api.mercadolibre.com",
+            # cdn.jsdelivr.net: Chart.js (cdn.jsdelivr.net/npm/chart.js) y su sourcemap .map.
+            # fonts.googleapis.com / fonts.gstatic.com: <link rel="preconnect"> de
+            # Google Fonts en src/static/index.html (preconnect se rige por connect-src).
+            "connect-src 'self' https://api.mercadolibre.com https://cdn.jsdelivr.net https://fonts.googleapis.com https://fonts.gstatic.com",
             "frame-ancestors 'none'",
             "base-uri 'self'",
             "form-action 'self'",

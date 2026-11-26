@@ -161,6 +161,13 @@ def test_http_security_headers_and_clickjacking_protection(security_ctx):
     assert "default-src 'self'" in csp
     assert "frame-ancestors 'none'" in csp
     assert "object-src 'none'" in csp
+    # Fix 13: todos los hosts externos que carga src/static/index.html deben
+    # estar permitidos o el navegador los bloquea (Tailwind no se definía y
+    # el sourcemap de Chart.js fallaba).
+    assert "https://cdn.tailwindcss.com" in csp  # script-src: Tailwind Play CDN
+    assert "https://cdn.jsdelivr.net" in csp  # script-src (Chart.js) y connect-src (sourcemap)
+    assert "https://fonts.googleapis.com" in csp  # style-src y connect-src (preconnect)
+    assert "https://fonts.gstatic.com" in csp  # font-src y connect-src (preconnect)
 
     # 2. Anti-Clickjacking
     assert response.headers.get("X-Frame-Options") == "DENY"
